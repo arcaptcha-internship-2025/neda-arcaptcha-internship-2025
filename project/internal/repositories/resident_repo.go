@@ -2,7 +2,7 @@ package repositories
 
 import (
 	"github.com/jmoiron/sqlx"
-	"github.com/nedaZarei/arcaptcha-internship-2025/nda-arcaptcha-internship-2025.git/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
 )
 
 // user_unit
