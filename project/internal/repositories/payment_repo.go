@@ -11,7 +11,7 @@ const (
 		bill_id INTEGER REFERENCES bills(id) ON DELETE CASCADE,
 		user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
 		amount DECIMAL(12, 2) NOT NULL,
-		is_paid BOOLEAN DEFAULT FALSE,
+		is_succesful BOOLEAN DEFAULT FALSE,
 		paid_at TIMESTAMP WITH TIME ZONE,
 		payment_reference VARCHAR(255),
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -19,6 +19,7 @@ const (
 	);`
 )
 
+// change
 type PaymentRepository interface {
 	CreatePayment(billID, userID int, amount float64, isPaid bool, paidAt *string, paymentReference string) (int, error)
 	GetPaymentByID(id int) (*models.Payment, error)

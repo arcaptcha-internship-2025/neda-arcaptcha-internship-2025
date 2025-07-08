@@ -8,14 +8,12 @@ import (
 const (
 	CREATE_INVITATION_LINKS_TABLE = `CREATE TABLE IF NOT EXISTS invitation_links(
 		id SERIAL PRIMARY KEY,
+		sender_id INTEGER NOT NULL REFERENCES users(id)
+		reciever_id INTEGER NOT NULL REFERENCES users(id),
         apartment_id INTEGER NOT NULL REFERENCES apartments(id),
         unit_id INTEGER NOT NULL REFERENCES units(id),
         token VARCHAR(255) UNIQUE NOT NULL,
-        created_by INTEGER NOT NULL REFERENCES users(id),
         expires_at TIMESTAMP NOT NULL,
-		is_used BOOLEAN DEFAULT FALSE,
-        used_by INTEGER REFERENCES users(id),
-        used_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 	);`
