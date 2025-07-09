@@ -1,7 +1,7 @@
 package models
 
 type Bill struct {
-	ID              int      `json:"id"`
+	BaseModel
 	ApartmentID     int      `json:"apartment_id"`
 	BillType        BillType `json:"bill_type"`
 	TotalAmount     float64  `json:"total_amount"`
@@ -9,8 +9,6 @@ type Bill struct {
 	BillingDeadline string   `json:"billing_deadline"`
 	Description     string   `json:"description"`
 	ImageURL        string   `json:"image_url"`
-	CreatedAt       string   `json:"created_at"`
-	UpdatedAt       string   `json:"updated_at"`
 }
 
 type BillType string
