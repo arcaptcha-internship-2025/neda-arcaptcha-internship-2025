@@ -1,0 +1,9 @@
+server:
+  port: :8080
+
+postgres:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: password
+  dbname: apartment_db
