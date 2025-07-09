@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"context"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
 )
@@ -21,10 +23,10 @@ const (
 )
 
 type BillRepository interface {
-	CreateBill(apartmentID int, billType string, totalAmount float64, dueDate, billingDeadline string, description, imageURL string) (int, error)
+	CreateBill(ctx context.Context, bill models.Bill) (int, error)
 	GetBillByID(id int) (*models.Bill, error)
 	GetBillsByApartmentID(apartmentID int) ([]models.Bill, error)
-	UpdateBill(id int, billType string, totalAmount float64, dueDate, billingDeadline string, description, imageURL string) error
+	UpdateBill(ctx context.Context, bill models.Bill) error
 	DeleteBill(id int)
 }
 type billRepositoryImpl struct {
@@ -40,12 +42,12 @@ func NewBillRepository(autoCreate bool, db *sqlx.DB) (BillRepository, error) {
 	return &billRepositoryImpl{db: db}, nil
 }
 
-func (r *billRepositoryImpl) CreateBill(apartmentID int, billType string, totalAmount float64, dueDate, billingDeadline string, description, imageURL string) (int, error) {
-	var id int
+func (r *billRepositoryImpl) CreateBill(ctx context.Context, bill models.Bill) (int, error) {
 	query := `INSERT INTO bills (apartment_id, bill_type, total_amount, due_date, billing_deadline, description, image_url) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
-	err := r.db.QueryRow(query, apartmentID, billType, totalAmount, dueDate, billingDeadline, description, imageURL).Scan(&id)
-	if err != nil {
+			  VALUES (:apartment_id, :bill_type, :total_amount, :due_date, :billing_deadline, :description, :image_url) 
+			  RETURNING id`
+	var id int
+	if err := r.db.QueryRowxContext(ctx, query, bill).Scan(&id); err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -72,12 +74,20 @@ func (r *billRepositoryImpl) GetBillsByApartmentID(apartmentID int) ([]models.Bi
 	}
 	return bills, nil
 }
-func (r *billRepositoryImpl) UpdateBill(id int, billType string, totalAmount float64, dueDate, billingDeadline string, description, imageURL string) error {
-	query := `UPDATE bills SET bill_type = $1, total_amount = $2, due_date = $3, billing_deadline = $4, description = $5, image_url = $6, updated_at = CURRENT_TIMESTAMP 
-			  WHERE id = $7`
-	_, err := r.db.Exec(query, billType, totalAmount, dueDate, billingDeadline, description, imageURL, id)
-	return err
+
+func (r *billRepositoryImpl) UpdateBill(ctx context.Context, bill models.Bill) error {
+	query := `UPDATE bills 
+			  SET apartment_id = :apartment_id, bill_type = :bill_type, total_amount = :total_amount, 
+			      due_date = :due_date, billing_deadline = :billing_deadline, description = :description, 
+			      image_url = :image_url, updated_at = CURRENT_TIMESTAMP 
+			  WHERE id = :id`
+	_, err := r.db.NamedExecContext(ctx, query, bill)
+	if err != nil {
+		return err
+	}
+	return nil
 }
+
 func (r *billRepositoryImpl) DeleteBill(id int) {
 	query := `DELETE FROM bills WHERE id = $1`
 	_, err := r.db.Exec(query, id)

@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"context"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
 )
@@ -17,8 +19,10 @@ const (
 )
 
 type UserApartmentRepository interface {
-	CreateUserApartment(userID, apartmentID int, isManager bool) error
+	CreateUserApartment(ctx context.Context, user_apartment models.User_apartment) error
 	GetUserApartmentByID(userID, apartmentID int) (*models.User_apartment, error)
+	UpdateUserApartment(ctx context.Context, user_apartment models.User_apartment) error
+	DeleteUserApartment(userID, apartmentID int) error
 }
 
 type userApartmentRepositoryImpl struct {
@@ -34,11 +38,14 @@ func NewUserApartmentRepository(autoCreate bool, db *sqlx.DB) (UserApartmentRepo
 	return &userApartmentRepositoryImpl{db: db}, nil
 }
 
-func (r *userApartmentRepositoryImpl) CreateUserApartment(userID, apartmentID int, isManager bool) error {
+func (r *userApartmentRepositoryImpl) CreateUserApartment(ctx context.Context, user_apartment models.User_apartment) error {
 	query := `INSERT INTO user_apartments (user_id, apartment_id, is_manager) 
-			  VALUES ($1, $2, $3) ON CONFLICT (user_id, apartment_id) DO NOTHING`
-	_, err := r.db.Exec(query, userID, apartmentID, isManager)
-	return err
+			  VALUES (:user_id, :apartment_id, :is_manager)`
+	_, err := r.db.NamedExecContext(ctx, query, user_apartment)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *userApartmentRepositoryImpl) GetUserApartmentByID(userID, apartmentID int) (*models.User_apartment, error) {
@@ -50,4 +57,24 @@ func (r *userApartmentRepositoryImpl) GetUserApartmentByID(userID, apartmentID i
 		return nil, err
 	}
 	return &userApartment, nil
+}
+
+func (r *userApartmentRepositoryImpl) UpdateUserApartment(ctx context.Context, user_apartment models.User_apartment) error {
+	query := `UPDATE user_apartments 
+			  SET is_manager = :is_manager, updated_at = CURRENT_TIMESTAMP 
+			  WHERE user_id = :user_id AND apartment_id = :apartment_id`
+	_, err := r.db.NamedExecContext(ctx, query, user_apartment)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *userApartmentRepositoryImpl) DeleteUserApartment(userID, apartmentID int) error {
+	query := `DELETE FROM user_apartments WHERE user_id = $1 AND apartment_id = $2`
+	_, err := r.db.Exec(query, userID, apartmentID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
