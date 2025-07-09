@@ -26,6 +26,7 @@ type UserRepository interface {
 	GetUserByID(id int) (*models.User, error)
 	UpdateUser(ctx context.Context, user models.User) error
 	DeleteUser(id int) error
+	GetAllUsers(ctx context.Context) ([]models.User, error)
 }
 
 type userRepositoryImpl struct {
@@ -73,4 +74,13 @@ func (r *userRepositoryImpl) DeleteUser(id int) error {
 	query := `DELETE FROM users WHERE id = $1`
 	_, err := r.db.Exec(query, id)
 	return err
+}
+
+func (r *userRepositoryImpl) GetAllUsers(ctx context.Context) ([]models.User, error) {
+	query := `SELECT * FROM users`
+	var users []models.User
+	if err := r.db.SelectContext(ctx, &users, query); err != nil {
+		return nil, err
+	}
+	return users, nil
 }
