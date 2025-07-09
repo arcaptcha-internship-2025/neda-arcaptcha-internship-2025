@@ -24,6 +24,6 @@ func NewNotification(baleClient *http.Client, baleToken string, baleBaseUrl stri
 }
 
 func (n *notificationImpl) SendNotification(ctx context.Context, message string) error {
-	n.baleClient.Post(n.baleBaseUrl + "/sendmessage")
+	n.baleClient.Post(n.baleBaseUrl+"/sendmessage", "", nil)
 	return nil
 }
