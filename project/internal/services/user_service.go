@@ -10,6 +10,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/config"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/handlers"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/middleware"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/repositories"
 )
 
@@ -76,6 +78,7 @@ func (s *UserService) setupRoutes(mux *http.ServeMux) {
 	//when the residents accept invitation they are added to user_apartment repo
 	//and then residents can sigup and login
 
+	//public routes
 	mux.HandleFunc("/api/v1/user/signup", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.userHandler.SignUp,
 	}))
@@ -84,29 +87,35 @@ func (s *UserService) setupRoutes(mux *http.ServeMux) {
 		"POST": s.userHandler.Login,
 	}))
 
-	//only manager routes
-	mux.HandleFunc("/api/v1/manager/users", s.methodHandler(map[string]http.HandlerFunc{
-		"GET":  s.userHandler.GetAllUsers,
-		"POST": s.userHandler.AddUser,
-	}))
+	// manager-only routes (requires manager authentication)
+	mux.Handle("/api/v1/manager/users", middleware.JWTAuthMiddleware(models.Manager)(
+		s.methodHandler(map[string]http.HandlerFunc{
+			"GET": s.userHandler.GetAllUsers,
+		}),
+	))
 
-	mux.HandleFunc("/api/v1/manager/users/", s.methodHandler(map[string]http.HandlerFunc{
-		"GET":    s.userHandler.GetUser,
-		"PUT":    s.userHandler.UpdateUser,
-		"DELETE": s.userHandler.DeleteUser,
-	}))
+	mux.Handle("/api/v1/manager/users/", middleware.JWTAuthMiddleware(models.Manager)(
+		s.methodHandler(map[string]http.HandlerFunc{
+			"GET":    s.userHandler.GetUser,
+			"DELETE": s.userHandler.DeleteUser,
+		}),
+	))
 
-	//user routes
-	mux.HandleFunc("/api/v1/user/profile", s.methodHandler(map[string]http.HandlerFunc{
-		"GET": s.userHandler.GetProfile,
-		"PUT": s.userHandler.UpdateProfile,
-	}))
+	// user routes (requires authentication for both manager and resident)
+	mux.Handle("/api/v1/user/profile", middleware.JWTAuthMiddleware(models.Resident)(
+		s.methodHandler(map[string]http.HandlerFunc{
+			"GET": s.userHandler.GetProfile,
+			"PUT": s.userHandler.UpdateProfile,
+		}),
+	))
 
-	mux.HandleFunc("/api/v1/user/profile/picture", s.methodHandler(map[string]http.HandlerFunc{
-		"POST": s.userHandler.UploadProfilePicture,
-	}))
+	mux.Handle("/api/v1/user/profile/picture", middleware.JWTAuthMiddleware(models.Resident)(
+		s.methodHandler(map[string]http.HandlerFunc{
+			"POST": s.userHandler.UploadProfilePicture,
+		}),
+	))
 
-	//health check
+	// health check (public)
 	mux.HandleFunc("/health", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.healthCheck,
 	}))

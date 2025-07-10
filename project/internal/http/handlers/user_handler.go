@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/repositories"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserHandler struct {
@@ -89,30 +92,140 @@ func (h *UserHandler) parseIDFromPath(path string) (int, error) {
 	return strconv.Atoi(idStr)
 }
 
+// extract user id from middleware
 func (h *UserHandler) getCurrentUserID(r *http.Request) (int, error) {
-	// todo: extract user id from JWT token or session
-	// for now returning a placeholder
-	userIDStr := r.Header.Get("X-User-ID")
-	if userIDStr == "" {
-		return 0, fmt.Errorf("user not authenticated")
+	userIDValue := r.Context().Value(middleware.UserIDKey)
+	if userIDValue == nil {
+		return 0, fmt.Errorf("user ID not found in context")
 	}
-	return strconv.Atoi(userIDStr)
+
+	userIDStr, ok := userIDValue.(string)
+	if !ok {
+		return 0, fmt.Errorf("invalid user ID format in context")
+	}
+
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid user ID format: %v", err)
+	}
+
+	return userID, nil
 }
 
-func (h *UserHandler) validateUserType(r *http.Request, allowedTypes ...models.UserType) error {
-	// todo: extract user type from JWT token or session
-	// for now checking header
-	userType := r.Header.Get("X-User-Type")
-	if userType == "" {
-		return fmt.Errorf("user type not found")
+func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
+	var req CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body")
+		return
 	}
 
-	for _, allowedType := range allowedTypes {
-		if models.UserType(userType) == allowedType {
-			return nil
-		}
+	if req.Username == "" || req.Password == "" || req.Email == "" {
+		h.writeErrorResponse(w, http.StatusBadRequest, "username, password, and email are required")
+		return
 	}
-	return fmt.Errorf("insufficient permissions")
+
+	if req.UserType != models.Manager && req.UserType != models.Resident {
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid user type")
+		return
+	}
+
+	existingUser, err := h.userRepo.GetUserByUsername(req.Username)
+	if err != nil && err != sql.ErrNoRows {
+		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to check existing user")
+		return
+	}
+	if existingUser != nil {
+		h.writeErrorResponse(w, http.StatusConflict, "username already exists")
+		return
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+
+	user := models.User{
+		Username:     req.Username,
+		PasswordHash: string(hashedPassword),
+		Email:        req.Email,
+		Phone:        req.Phone,
+		FullName:     req.FullName,
+		UserType:     req.UserType,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID, err := h.userRepo.CreateUser(ctx, user)
+	if err != nil {
+		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to create user")
+		return
+	}
+	user.ID = userID
+
+	// generating token for immediate login after signup
+	token, err := middleware.GenerateToken(strconv.Itoa(userID), user.UserType)
+	if err != nil {
+		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	responseData := map[string]interface{}{
+		"user":  user,
+		"token": token,
+	}
+
+	h.writeSuccessResponse(w, "user created successfully", responseData)
+}
+
+func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Username == "" || req.Password == "" {
+		h.writeErrorResponse(w, http.StatusBadRequest, "username and password are required")
+		return
+	}
+
+	existingUser, err := h.userRepo.GetUserByUsername(req.Username)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			h.writeErrorResponse(w, http.StatusUnauthorized, "invalid username or password")
+			return
+		}
+		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to retrieve user")
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(req.Password)); err != nil {
+		h.writeErrorResponse(w, http.StatusUnauthorized, "invalid username or password")
+		return
+	}
+
+	token, err := middleware.GenerateToken(strconv.Itoa(existingUser.ID), existingUser.UserType)
+	if err != nil {
+		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	responseData := map[string]interface{}{
+		"token":     token,
+		"user_id":   strconv.Itoa(existingUser.ID),
+		"user_type": string(existingUser.UserType),
+		"username":  existingUser.Username,
+		"email":     existingUser.Email,
+		"full_name": existingUser.FullName,
+	}
+
+	h.writeSuccessResponse(w, "login successful", responseData)
 }
 
 func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -150,10 +263,18 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingUser.Username = req.Username
-	existingUser.Email = req.Email
-	existingUser.Phone = req.Phone
-	existingUser.FullName = req.FullName
+	if req.Username != "" {
+		existingUser.Username = req.Username
+	}
+	if req.Email != "" {
+		existingUser.Email = req.Email
+	}
+	if req.Phone != "" {
+		existingUser.Phone = req.Phone
+	}
+	if req.FullName != "" {
+		existingUser.FullName = req.FullName
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -172,8 +293,6 @@ func (h *UserHandler) UploadProfilePicture(w http.ResponseWriter, r *http.Reques
 		h.writeErrorResponse(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	//parsign multipart form
 	err = r.ParseMultipartForm(10 << 20) // 10 MB limit
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusBadRequest, "failed to parse form")
@@ -187,7 +306,6 @@ func (h *UserHandler) UploadProfilePicture(w http.ResponseWriter, r *http.Reques
 	}
 	defer file.Close()
 
-	// validating file type
 	allowedTypes := []string{".jpg", ".jpeg", ".png", ".gif"}
 	fileExt := strings.ToLower(filepath.Ext(header.Filename))
 	isValidType := false
@@ -204,14 +322,14 @@ func (h *UserHandler) UploadProfilePicture(w http.ResponseWriter, r *http.Reques
 	}
 
 	// todo: save file to minio
-	// for now just reasd the file to validate it
+	// for now just read the file to validate it
 	_, err = io.ReadAll(file)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to process file")
 		return
 	}
 
-	// todo:update user profile with image URL
+	// todo: update user profile with image URL
 	fileName := fmt.Sprintf("profile_%d_%d%s", userID, time.Now().Unix(), fileExt)
 
 	h.writeSuccessResponse(w, "profile picture uploaded successfully", map[string]string{
@@ -220,56 +338,9 @@ func (h *UserHandler) UploadProfilePicture(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// manager
-func (h *UserHandler) AddUser(w http.ResponseWriter, r *http.Request) {
-	if err := h.validateUserType(r, models.Manager); err != nil {
-		h.writeErrorResponse(w, http.StatusForbidden, "manager access required")
-		return
-	}
-
-	var req CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	//basic validation
-	if req.Username == "" || req.Password == "" || req.Email == "" {
-		h.writeErrorResponse(w, http.StatusBadRequest, "username, password, and email are required")
-		return
-	}
-
-	// todo: hash password
-	passwordHash := req.Password // this should be hashed babe
-
-	user := models.User{
-		Username:     req.Username,
-		PasswordHash: passwordHash,
-		Email:        req.Email,
-		Phone:        req.Phone,
-		FullName:     req.FullName,
-		UserType:     req.UserType,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	userID, err := h.userRepo.CreateUser(ctx, user)
-	if err != nil {
-		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to create user")
-		return
-	}
-
-	user.ID = userID
-	h.writeSuccessResponse(w, "user created successfully", user)
-}
-
+// manager-only
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
-	if err := h.validateUserType(r, models.Manager); err != nil {
-		h.writeErrorResponse(w, http.StatusForbidden, "manager access required")
-		return
-	}
-
+	// auth is handled by middleware
 	userID, err := h.parseIDFromPath(r.URL.Path)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusBadRequest, "invalid user ID")
@@ -286,10 +357,6 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
-	if err := h.validateUserType(r, models.Manager); err != nil {
-		h.writeErrorResponse(w, http.StatusForbidden, "manager access required")
-		return
-	}
 	users, err := h.userRepo.GetAllUsers(r.Context())
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to retrieve users")
@@ -299,56 +366,10 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	h.writeSuccessResponse(w, "users retrieved successfully", users)
 }
 
-func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	if err := h.validateUserType(r, models.Manager); err != nil {
-		h.writeErrorResponse(w, http.StatusForbidden, "manager access required")
-		return
-	}
-
-	userID, err := h.parseIDFromPath(r.URL.Path)
-	if err != nil {
-		h.writeErrorResponse(w, http.StatusBadRequest, "invalid user id")
-		return
-	}
-
-	var req UpdateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	existingUser, err := h.userRepo.GetUserByID(userID)
-	if err != nil {
-		h.writeErrorResponse(w, http.StatusNotFound, "user not found")
-		return
-	}
-
-	existingUser.Username = req.Username
-	existingUser.Email = req.Email
-	existingUser.Phone = req.Phone
-	existingUser.FullName = req.FullName
-	existingUser.UserType = req.UserType
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := h.userRepo.UpdateUser(ctx, *existingUser); err != nil {
-		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update user")
-		return
-	}
-
-	h.writeSuccessResponse(w, "user updated successfully", existingUser)
-}
-
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	if err := h.validateUserType(r, models.Manager); err != nil {
-		h.writeErrorResponse(w, http.StatusForbidden, "manager access required")
-		return
-	}
-
 	userID, err := h.parseIDFromPath(r.URL.Path)
 	if err != nil {
-		h.writeErrorResponse(w, http.StatusBadRequest, "invalid user id")
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
