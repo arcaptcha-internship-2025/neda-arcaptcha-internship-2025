@@ -9,7 +9,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/config"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/handlers"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/handlers"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/repositories"
 )
 
@@ -70,17 +70,21 @@ func (s *UserService) Start() error {
 }
 
 func (s *UserService) setupRoutes(mux *http.ServeMux) {
-	//resident routes
-	mux.HandleFunc("/api/v1/user/profile", s.methodHandler(map[string]http.HandlerFunc{
-		"GET": s.userHandler.GetProfile,
-		"PUT": s.userHandler.UpdateProfile,
+	//first only managers can signup/login
+	//manager creates the apartment,and we assume that he knows which user is in which apartments
+	//and he sends invitation
+	//when the residents accept invitation they are added to user_apartment repo
+	//and then residents can sigup and login
+
+	mux.HandleFunc("/api/v1/user/signup", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.userHandler.SignUp,
 	}))
 
-	mux.HandleFunc("/api/v1/user/profile/picture", s.methodHandler(map[string]http.HandlerFunc{
-		"POST": s.userHandler.UploadProfilePicture,
+	mux.HandleFunc("/api/v1/user/login", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.userHandler.Login,
 	}))
 
-	//manager routes
+	//only manager routes
 	mux.HandleFunc("/api/v1/manager/users", s.methodHandler(map[string]http.HandlerFunc{
 		"GET":  s.userHandler.GetAllUsers,
 		"POST": s.userHandler.AddUser,
@@ -90,6 +94,16 @@ func (s *UserService) setupRoutes(mux *http.ServeMux) {
 		"GET":    s.userHandler.GetUser,
 		"PUT":    s.userHandler.UpdateUser,
 		"DELETE": s.userHandler.DeleteUser,
+	}))
+
+	//user routes
+	mux.HandleFunc("/api/v1/user/profile", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.userHandler.GetProfile,
+		"PUT": s.userHandler.UpdateProfile,
+	}))
+
+	mux.HandleFunc("/api/v1/user/profile/picture", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.userHandler.UploadProfilePicture,
 	}))
 
 	//health check
@@ -138,7 +152,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		log.Printf("%s %s %s - Started", r.RemoteAddr, r.Method, r.URL.Path)
 
-		//  a custom ResponseWriter to capture status code
+		//custom ResponseWriter to capture status code
 		ww := &responseWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(ww, r)

@@ -90,7 +90,7 @@ func (h *UserHandler) parseIDFromPath(path string) (int, error) {
 }
 
 func (h *UserHandler) getCurrentUserID(r *http.Request) (int, error) {
-	// todo: Extract user id from JWT token or session
+	// todo: extract user id from JWT token or session
 	// for now returning a placeholder
 	userIDStr := r.Header.Get("X-User-ID")
 	if userIDStr == "" {
@@ -115,7 +115,6 @@ func (h *UserHandler) validateUserType(r *http.Request, allowedTypes ...models.U
 	return fmt.Errorf("insufficient permissions")
 }
 
-// resident
 func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getCurrentUserID(r)
 	if err != nil {
@@ -204,8 +203,8 @@ func (h *UserHandler) UploadProfilePicture(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// todo: Save file to minio
-	// for no just reasd the file to validate it
+	// todo: save file to minio
+	// for now just reasd the file to validate it
 	_, err = io.ReadAll(file)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to process file")
