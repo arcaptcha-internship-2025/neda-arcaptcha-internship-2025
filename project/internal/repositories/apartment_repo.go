@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"context"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
 )
@@ -18,9 +20,9 @@ const (
 )
 
 type ApartmentRepository interface {
-	CreateApartment(apartmentName, address string, unitsCount int, managerID int) (int, error)
+	CreateApartment(ctx context.Context, apartment models.Apartment) (int, error)
 	GetApartmentByID(id int) (*models.Apartment, error)
-	UpdateApartment(id int, apartmentName, address string, unitsCount int, managerID int) error
+	UpdateApartment(ctx context.Context, apartment models.Apartment) error
 	DeleteApartment(id int) error
 }
 
@@ -37,12 +39,12 @@ func NewApartmentRepository(autoCreate bool, db *sqlx.DB) (ApartmentRepository, 
 	return &apartmentRepositoryImpl{db: db}, nil
 }
 
-func (r *apartmentRepositoryImpl) CreateApartment(apartmentName, address string, unitsCount int, managerID int) (int, error) {
-	var id int
+func (r *apartmentRepositoryImpl) CreateApartment(ctx context.Context, apartment models.Apartment) (int, error) {
 	query := `INSERT INTO apartments (apartment_name, address, units_count, manager_id) 
-              VALUES ($1, $2, $3, $4) RETURNING id`
-	err := r.db.QueryRow(query, apartmentName, address, unitsCount, managerID).Scan(&id)
-	if err != nil {
+	          VALUES (:apartment_name, :address, :units_count, :manager_id) 
+	          RETURNING id`
+	var id int
+	if err := r.db.QueryRowxContext(ctx, query, apartment).Scan(&id); err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -59,10 +61,11 @@ func (r *apartmentRepositoryImpl) GetApartmentByID(id int) (*models.Apartment, e
 	return &apartment, nil
 }
 
-func (r *apartmentRepositoryImpl) UpdateApartment(id int, apartmentName, address string, unitsCount int, managerID int) error {
-	query := `UPDATE apartments SET apartment_name = $1, address = $2, units_count = $3, manager_id = $4, 
-			  updated_at = CURRENT_TIMESTAMP WHERE id = $5`
-	_, err := r.db.Exec(query, apartmentName, address, unitsCount, managerID, id)
+func (r *apartmentRepositoryImpl) UpdateApartment(ctx context.Context, apartment models.Apartment) error {
+	query := `UPDATE apartments SET apartment_name = :apartment_name, address = :address, 
+	          units_count = :units_count, manager_id = :manager_id, updated_at = CURRENT_TIMESTAMP 
+	          WHERE id = :id`
+	_, err := r.db.NamedExecContext(ctx, query, apartment)
 	return err
 }
 
