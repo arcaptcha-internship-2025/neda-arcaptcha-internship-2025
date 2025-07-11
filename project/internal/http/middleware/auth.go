@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 
 	"errors"
 	"net/http"
@@ -91,4 +92,52 @@ func ValidateToken(tokenStr string, userType models.UserType) (string, error) {
 	}
 
 	return decryptedID, nil
+}
+
+// logs all incoming requests
+func LoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		log.Printf("%s %s %s - Started", r.RemoteAddr, r.Method, r.URL.Path)
+
+		//custom ResponseWriter to capture status code
+		ww := &responseWrapper{ResponseWriter: w, statusCode: http.StatusOK}
+
+		next.ServeHTTP(ww, r)
+
+		duration := time.Since(start)
+		log.Printf("%s %s %s - Completed in %v with status %d",
+			r.RemoteAddr, r.Method, r.URL.Path, duration, ww.statusCode)
+	})
+}
+
+// handles CORS headers
+func CorsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// captures the status code for logging
+type responseWrapper struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWrapper) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWrapper) Write(b []byte) (int, error) {
+	return rw.ResponseWriter.Write(b)
 }

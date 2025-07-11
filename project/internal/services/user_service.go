@@ -58,7 +58,7 @@ func (s *UserService) Start() error {
 
 	s.server = &http.Server{
 		Addr:         "localhost" + s.cfg.Server.Port,
-		Handler:      loggingMiddleware(corsMiddleware(mux)),
+		Handler:      middleware.LoggingMiddleware(middleware.CorsMiddleware(mux)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -88,15 +88,20 @@ func (s *UserService) setupRoutes(mux *http.ServeMux) {
 	}))
 
 	// manager-only routes (requires manager authentication)
-	mux.Handle("/api/v1/manager/users", middleware.JWTAuthMiddleware(models.Manager)(
+	mux.Handle("/api/v1/manager/user/get-all", middleware.JWTAuthMiddleware(models.Manager)(
 		s.methodHandler(map[string]http.HandlerFunc{
 			"GET": s.userHandler.GetAllUsers,
 		}),
 	))
 
-	mux.Handle("/api/v1/manager/users/", middleware.JWTAuthMiddleware(models.Manager)(
+	mux.Handle("/api/v1/manager/user/get", middleware.JWTAuthMiddleware(models.Manager)(
 		s.methodHandler(map[string]http.HandlerFunc{
-			"GET":    s.userHandler.GetUser,
+			"GET": s.userHandler.GetUser,
+		}),
+	))
+
+	mux.Handle("/api/v1/manager/user/delete", middleware.JWTAuthMiddleware(models.Manager)(
+		s.methodHandler(map[string]http.HandlerFunc{
 			"DELETE": s.userHandler.DeleteUser,
 		}),
 	))
@@ -153,52 +158,4 @@ func (s *UserService) Stop() error {
 
 	log.Println("server exited")
 	return nil
-}
-
-// logs all incoming requests
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		log.Printf("%s %s %s - Started", r.RemoteAddr, r.Method, r.URL.Path)
-
-		//custom ResponseWriter to capture status code
-		ww := &responseWrapper{ResponseWriter: w, statusCode: http.StatusOK}
-
-		next.ServeHTTP(ww, r)
-
-		duration := time.Since(start)
-		log.Printf("%s %s %s - Completed in %v with status %d",
-			r.RemoteAddr, r.Method, r.URL.Path, duration, ww.statusCode)
-	})
-}
-
-// handles CORS headers
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// captures the status code for logging
-type responseWrapper struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWrapper) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
-}
-
-func (rw *responseWrapper) Write(b []byte) (int, error) {
-	return rw.ResponseWriter.Write(b)
 }
