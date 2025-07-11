@@ -70,62 +70,44 @@ func (s *ApartmentService) Start() error {
 }
 
 func (s *ApartmentService) setupRoutes(mux *http.ServeMux) {
+	//grouping manager routes with common prefix and middleware
+	managerRoutes := http.NewServeMux()
+	managerRoutes.Handle("/apartment/create", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.apartmentHandler.CreateApartment,
+	}))
+	managerRoutes.Handle("/apartment/get", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.apartmentHandler.GetApartmentByID,
+	}))
+	managerRoutes.Handle("/apartment/get-all", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.apartmentHandler.GetAllApartments,
+	}))
+	managerRoutes.Handle("/apartment/update", s.methodHandler(map[string]http.HandlerFunc{
+		"PUT": s.apartmentHandler.UpdateApartment,
+	}))
+	managerRoutes.Handle("/apartment/delete", s.methodHandler(map[string]http.HandlerFunc{
+		"DELETE": s.apartmentHandler.DeleteApartment,
+	}))
+	managerRoutes.Handle("/apartment/residents", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.apartmentHandler.GetResidentsInApartment,
+	}))
+	managerRoutes.Handle("/apartment/invite", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.apartmentHandler.InviteUserToApartment,
+	}))
 
-	// manager-only routes (requires manager authentication)
-	mux.Handle("/api/v1/manager/apartment/create", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"POST": s.apartmentHandler.CreateApartment,
-		}),
-	))
+	//applying manager middleware to all manager routes
+	mux.Handle("/api/v1/manager/", middleware.JWTAuthMiddleware(models.Manager)(managerRoutes))
 
-	mux.Handle("/api/v1/manager/apartment/get", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"GET": s.apartmentHandler.GetApartmentByID,
-		}),
-	))
+	//grouping resident routes
+	residentRoutes := http.NewServeMux()
+	residentRoutes.Handle("/apartment/join", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.apartmentHandler.JoinApartment,
+	}))
+	residentRoutes.Handle("/apartment/leave", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.apartmentHandler.LeaveApartment,
+	}))
 
-	mux.Handle("/api/v1/manager/apartment/get-all", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"GET": s.apartmentHandler.GetAllApartments,
-		}),
-	))
-
-	mux.Handle("/api/v1/manager/apartment/update", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"PUT": s.apartmentHandler.UpdateApartment,
-		}),
-	))
-
-	mux.Handle("/api/v1/manager/apartment/delete", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"DELETE": s.apartmentHandler.DeleteApartment,
-		}),
-	))
-
-	mux.Handle("/api/v1/manager/apartment/residents", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"GET": s.apartmentHandler.GetResidentsInApartment,
-		}),
-	))
-
-	mux.Handle("/api/v1/manager/apartment/invite", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"POST": s.apartmentHandler.InviteUserToApartment,
-		}),
-	))
-
-	//resident routes (requires both resident and manager authentication)
-	mux.Handle("/api/v1/apartment/join", middleware.JWTAuthMiddleware(models.Resident)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"POST": s.apartmentHandler.JoinApartment,
-		}),
-	))
-
-	mux.Handle("/api/v1/apartment/leave", middleware.JWTAuthMiddleware(models.Resident)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"POST": s.apartmentHandler.LeaveApartment,
-		}),
-	))
+	//applying resident middleware to all resident routes
+	mux.Handle("/api/v1/", middleware.JWTAuthMiddleware(models.Resident)(residentRoutes))
 
 	mux.HandleFunc("/health", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.healthCheck,
