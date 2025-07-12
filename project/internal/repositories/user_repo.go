@@ -11,7 +11,7 @@ const (
 	CREATE_USERS_TABLE = `CREATE TABLE IF NOT EXISTS users(
         id SERIAL PRIMARY KEY,
         username VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(2000) NOT NULL,
+        password VARCHAR(2000) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         phone VARCHAR(20) UNIQUE NOT NULL,
         full_name VARCHAR(100) NOT NULL,
@@ -28,6 +28,8 @@ type UserRepository interface {
 	DeleteUser(id int) error
 	GetAllUsers(ctx context.Context) ([]models.User, error)
 	GetUserByUsername(username string) (*models.User, error)
+	GetUserByEmail(email string) (*models.User, error)
+	GetUserByPhone(phone string) (*models.User, error)
 }
 
 type userRepositoryImpl struct {
@@ -90,6 +92,24 @@ func (r *userRepositoryImpl) GetUserByUsername(username string) (*models.User, e
 	query := `SELECT * FROM users WHERE username = $1`
 	var user models.User
 	if err := r.db.Get(&user, query, username); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *userRepositoryImpl) GetUserByEmail(email string) (*models.User, error) {
+	query := `SELECT * FROM users WHERE email = $1`
+	var user models.User
+	if err := r.db.Get(&user, query, email); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *userRepositoryImpl) GetUserByPhone(phone string) (*models.User, error) {
+	query := `SELECT * FROM users WHERE phone = $1`
+	var user models.User
+	if err := r.db.Get(&user, query, phone); err != nil {
 		return nil, err
 	}
 	return &user, nil

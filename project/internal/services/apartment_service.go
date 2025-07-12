@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/config"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/app"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/handlers"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/repositories"
@@ -32,29 +33,22 @@ func NewApartmentService(cfg *config.Config) *ApartmentService {
 
 func (s *ApartmentService) Start() error {
 	//db connection
-	db, err := sqlx.Open("postgres", fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		s.cfg.Postgres.Host, s.cfg.Postgres.Port, s.cfg.Postgres.Username,
-		s.cfg.Postgres.Password, s.cfg.Postgres.Database))
+	db, err := app.ConnectToDatabase(s.cfg.Postgres)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
-	fmt.Println("connected to Postgres")
 
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("failed to ping database: %v", err)
-	}
-
-	//init repo
+	// init repo
 	repo, err := repositories.NewApartmentRepository(s.cfg.Postgres.AutoCreate, db)
 	if err != nil {
 		return fmt.Errorf("failed to create apartment repository: %v", err)
 	}
 	s.apartmentRepository = repo
 
-	//init handler
+	// init handler
 	s.apartmentHandler = handlers.NewApartmentHandler(s.apartmentRepository)
 
-	//setting up http server with routes
+	// setting up http server with routes
 	mux := http.NewServeMux()
 	s.setupRoutes(mux)
 
@@ -70,48 +64,48 @@ func (s *ApartmentService) Start() error {
 }
 
 func (s *ApartmentService) setupRoutes(mux *http.ServeMux) {
-	//grouping manager routes with common prefix and middleware
+	api := http.NewServeMux()
+	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
+
+	//grouping manager routes
 	managerRoutes := http.NewServeMux()
-	managerRoutes.Handle("/apartment/create", s.methodHandler(map[string]http.HandlerFunc{
+	api.Handle("/manager/", http.StripPrefix("/manager", middleware.JWTAuthMiddleware(models.Manager)(managerRoutes)))
+	managerRoutes.HandleFunc("/apartment/create", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.CreateApartment,
 	}))
-	managerRoutes.Handle("/apartment/get", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/get", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetApartmentByID,
 	}))
-	managerRoutes.Handle("/apartment/get-all", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/get-all", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetAllApartments,
 	}))
-	managerRoutes.Handle("/apartment/update", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/update", s.methodHandler(map[string]http.HandlerFunc{
 		"PUT": s.apartmentHandler.UpdateApartment,
 	}))
-	managerRoutes.Handle("/apartment/delete", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/delete", s.methodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.apartmentHandler.DeleteApartment,
 	}))
-	managerRoutes.Handle("/apartment/residents", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/residents", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetResidentsInApartment,
 	}))
-	managerRoutes.Handle("/apartment/invite", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/invite", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
 
-	//applying manager middleware to all manager routes
-	mux.Handle("/api/v1/manager/", middleware.JWTAuthMiddleware(models.Manager)(managerRoutes))
-
 	//grouping resident routes
 	residentRoutes := http.NewServeMux()
-	residentRoutes.Handle("/apartment/join", s.methodHandler(map[string]http.HandlerFunc{
+	api.Handle("/resident/", http.StripPrefix("/resident", middleware.JWTAuthMiddleware(models.Resident)(residentRoutes)))
+	residentRoutes.HandleFunc("/apartment/join", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.JoinApartment,
 	}))
-	residentRoutes.Handle("/apartment/leave", s.methodHandler(map[string]http.HandlerFunc{
+	residentRoutes.HandleFunc("/apartment/leave", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.LeaveApartment,
 	}))
-
-	//applying resident middleware to all resident routes
-	mux.Handle("/api/v1/", middleware.JWTAuthMiddleware(models.Resident)(residentRoutes))
 
 	mux.HandleFunc("/health", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.healthCheck,
 	}))
+
 }
 
 func (s *ApartmentService) methodHandler(methods map[string]http.HandlerFunc) http.HandlerFunc {

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/config"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/app"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/handlers"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
@@ -29,30 +29,19 @@ func NewUserService(cfg *config.Config) *UserService {
 }
 
 func (s *UserService) Start() error {
-	//db connection
-	db, err := sqlx.Open("postgres", fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		s.cfg.Postgres.Host, s.cfg.Postgres.Port, s.cfg.Postgres.Username,
-		s.cfg.Postgres.Password, s.cfg.Postgres.Database))
+	db, err := app.ConnectToDatabase(s.cfg.Postgres)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
-	fmt.Println("connected to Postgres")
 
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("failed to ping database: %v", err)
-	}
-
-	//init repo
 	repo, err := repositories.NewUserRepository(s.cfg.Postgres.AutoCreate, db)
 	if err != nil {
 		return fmt.Errorf("failed to create user repository: %v", err)
 	}
 	s.userRepository = repo
 
-	//init handler
 	s.userHandler = handlers.NewUserHandler(s.userRepository)
 
-	//settingup http server with routes
 	mux := http.NewServeMux()
 	s.setupRoutes(mux)
 
@@ -64,63 +53,52 @@ func (s *UserService) Start() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Printf("server starting on %s", s.server.Addr)
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("failed to start server: %v", err)
-	}
-	return nil
+	log.Printf("User service starting on %s", s.server.Addr)
+	return s.server.ListenAndServe()
 }
 
 func (s *UserService) setupRoutes(mux *http.ServeMux) {
-	//first only managers can signup/login
-	//manager creates the apartment,and we assume that he knows which user is in which apartments
-	//and he sends invitation
-	//when the residents accept invitation they are added to user_apartment repo
-	//and then residents can sigup and login
+	api := http.NewServeMux()
+	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
 
 	//public routes
-	mux.HandleFunc("/api/v1/user/signup", s.methodHandler(map[string]http.HandlerFunc{
+	api.HandleFunc("/user/signup", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.userHandler.SignUp,
 	}))
 
-	mux.HandleFunc("/api/v1/user/login", s.methodHandler(map[string]http.HandlerFunc{
+	api.HandleFunc("/user/login", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.userHandler.Login,
 	}))
 
-	// manager-only routes (requires manager authentication)
-	mux.Handle("/api/v1/manager/user/get-all", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"GET": s.userHandler.GetAllUsers,
-		}),
-	))
+	//grouping manager routes
+	managerRoutes := http.NewServeMux()
+	api.Handle("/manager/", http.StripPrefix("/manager", middleware.JWTAuthMiddleware(models.Manager)(managerRoutes)))
 
-	mux.Handle("/api/v1/manager/user/get", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"GET": s.userHandler.GetUser,
-		}),
-	))
+	managerRoutes.HandleFunc("/user/get-all", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.userHandler.GetAllUsers,
+	}))
 
-	mux.Handle("/api/v1/manager/user/delete", middleware.JWTAuthMiddleware(models.Manager)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"DELETE": s.userHandler.DeleteUser,
-		}),
-	))
+	managerRoutes.HandleFunc("/user/get", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.userHandler.GetUser,
+	}))
 
-	// user routes (requires authentication for both manager and resident)
-	mux.Handle("/api/v1/user/profile", middleware.JWTAuthMiddleware(models.Resident)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"GET": s.userHandler.GetProfile,
-			"PUT": s.userHandler.UpdateProfile,
-		}),
-	))
+	managerRoutes.HandleFunc("/user/delete", s.methodHandler(map[string]http.HandlerFunc{
+		"DELETE": s.userHandler.DeleteUser,
+	}))
 
-	mux.Handle("/api/v1/user/profile/picture", middleware.JWTAuthMiddleware(models.Resident)(
-		s.methodHandler(map[string]http.HandlerFunc{
-			"POST": s.userHandler.UploadProfilePicture,
-		}),
-	))
+	//grouping resident routes
+	residentRoutes := http.NewServeMux()
+	api.Handle("/resident/", http.StripPrefix("/resident", middleware.JWTAuthMiddleware(models.Resident)(residentRoutes)))
 
-	// health check (public)
+	residentRoutes.HandleFunc("/profile", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.userHandler.GetProfile,
+		"PUT": s.userHandler.UpdateProfile,
+	}))
+
+	residentRoutes.HandleFunc("/profile/picture", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.userHandler.UploadProfilePicture,
+	}))
+
 	mux.HandleFunc("/health", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.healthCheck,
 	}))

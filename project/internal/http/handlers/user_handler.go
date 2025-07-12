@@ -113,7 +113,7 @@ func (h *UserHandler) getCurrentUserID(r *http.Request) (int, error) {
 }
 
 func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
-	var req CreateUserRequest
+	var req models.User
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -146,12 +146,12 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := models.User{
-		Username:     req.Username,
-		PasswordHash: string(hashedPassword),
-		Email:        req.Email,
-		Phone:        req.Phone,
-		FullName:     req.FullName,
-		UserType:     req.UserType,
+		Username: req.Username,
+		Password: string(hashedPassword),
+		Email:    req.Email,
+		Phone:    req.Phone,
+		FullName: req.FullName,
+		UserType: req.UserType,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -205,7 +205,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(existingUser.Password), []byte(req.Password)); err != nil {
 		h.writeErrorResponse(w, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
