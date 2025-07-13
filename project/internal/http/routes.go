@@ -60,15 +60,11 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 
 	// resident routes
 	residentRoutes := http.NewServeMux()
-	v1.Handle("/resident/", http.StripPrefix("/resident", middleware.JWTAuthMiddleware(models.Resident)(residentRoutes)))
+	v1.Handle("/resident/", http.StripPrefix("/resident", middleware.JWTAuthMiddleware(models.Resident, models.Manager)(residentRoutes)))
 
 	residentRoutes.HandleFunc("/profile", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.userHandler.GetProfile,
 		"PUT": s.userHandler.UpdateProfile,
-	}))
-
-	residentRoutes.HandleFunc("/profile/picture", utils.MethodHandler(map[string]http.HandlerFunc{
-		"POST": s.userHandler.UploadProfilePicture,
 	}))
 
 	residentRoutes.HandleFunc("/apartment/join", s.methodHandler(map[string]http.HandlerFunc{

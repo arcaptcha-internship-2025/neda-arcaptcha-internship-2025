@@ -3,6 +3,8 @@ package notification
 import (
 	"context"
 	"net/http"
+
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
 )
 
 type Notification interface {
@@ -15,11 +17,11 @@ type notificationImpl struct {
 	baleBaseUrl string
 }
 
-func NewNotification(baleClient *http.Client, baleToken string, baleBaseUrl string) Notification {
+func NewNotification(cfg config.BaleConfig) Notification {
 	return &notificationImpl{
-		baleClient:  baleClient,
-		baleToken:   baleToken,
-		baleBaseUrl: baleBaseUrl,
+		baleClient:  &http.Client{Timeout: cfg.Timeout},
+		baleToken:   cfg.ApiToken,
+		baleBaseUrl: cfg.BaseUrl,
 	}
 }
 

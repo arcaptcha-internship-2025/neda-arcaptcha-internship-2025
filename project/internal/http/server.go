@@ -18,6 +18,7 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/utils"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/image"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -62,6 +63,7 @@ func (s *ApartmantService) Start(serviceName string) error {
 		repositories.NewApartmentRepository(s.cfg.Postgres.AutoCreate, s.db),
 		repositories.NewUserApartmentRepository(s.cfg.Postgres.AutoCreate, s.db),
 		repositories.NewInvitationLinkRepository(s.redisClient),
+		notification.NewNotification(s.cfg.BaleConfig),
 	)
 	s.billHandler = handlers.NewBillHandler(repositories.NewBillRepository(s.cfg.Postgres.AutoCreate, s.db), image.NewImage(s.cfg.Minio.Endpoint, s.cfg.Minio.AccessKey, s.cfg.Minio.SecretKey, s.cfg.Minio.Bucket))
 

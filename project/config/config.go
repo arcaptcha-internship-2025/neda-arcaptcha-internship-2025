@@ -2,15 +2,17 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Server   Server   `yaml:"server"`
-	Postgres Postgres `yaml:"postgres"`
-	Minio    Minio    `yaml:"minio"`
-	Redis    Redis    `yaml:"redis"`
+	Server     Server     `yaml:"server"`
+	Postgres   Postgres   `yaml:"postgres"`
+	Minio      Minio      `yaml:"minio"`
+	Redis      Redis      `yaml:"redis"`
+	BaleConfig BaleConfig `yaml:"bale_config"`
 }
 
 type Server struct {
@@ -37,6 +39,12 @@ type Redis struct {
 	Address  string `yaml:"address"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+}
+
+type BaleConfig struct {
+	ApiToken string        `yaml:"api_token"`
+	BaseUrl  string        `yaml:"api_token"`
+	Timeout  time.Duration `yaml:"timeout"`
 }
 
 func InitConfig(filename string) (*Config, error) {

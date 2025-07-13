@@ -6,20 +6,23 @@ import (
 	"strconv"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
 )
 
 type ApartmentHandler struct {
-	apartmentRepo     repositories.ApartmentRepository
-	userApartmentRepo repositories.UserApartmentRepository
-	inviteLinkRepo    repositories.InviteLinkFlagRepo
+	apartmentRepo       repositories.ApartmentRepository
+	userApartmentRepo   repositories.UserApartmentRepository
+	inviteLinkRepo      repositories.InviteLinkFlagRepo
+	notificationService notification.Notification
 }
 
-func NewApartmentHandler(apartmentRepo repositories.ApartmentRepository, userApartmentRepo repositories.UserApartmentRepository, inviteLinkRepo repositories.InviteLinkFlagRepo) *ApartmentHandler {
+func NewApartmentHandler(apartmentRepo repositories.ApartmentRepository, userApartmentRepo repositories.UserApartmentRepository, inviteLinkRepo repositories.InviteLinkFlagRepo, notificationService notification.Notification) *ApartmentHandler {
 	return &ApartmentHandler{
-		apartmentRepo:     apartmentRepo,
-		userApartmentRepo: userApartmentRepo,
-		inviteLinkRepo:    inviteLinkRepo,
+		apartmentRepo:       apartmentRepo,
+		userApartmentRepo:   userApartmentRepo,
+		inviteLinkRepo:      inviteLinkRepo,
+		notificationService: notificationService,
 	}
 }
 

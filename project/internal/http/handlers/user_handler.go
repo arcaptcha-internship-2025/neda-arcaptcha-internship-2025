@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -227,36 +225,6 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteSuccessResponse(w, "profile updated successfully", existingUser)
-}
-
-func (h *UserHandler) UploadProfilePicture(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.getCurrentUserID(r)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	file, header, err := utils.ParseFileUpload(w, r, "profile_picture", 10<<20)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-
-	allowedTypes := []string{".jpg", ".jpeg", ".png", ".gif"}
-	if !utils.ValidateFileType(w, header.Filename, allowedTypes) {
-		return
-	}
-
-	_, err = io.ReadAll(file)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to process file")
-		return
-	}
-
-	fileName := fmt.Sprintf("profile_%d_%d%s", userID, time.Now().Unix(), filepath.Ext(header.Filename))
-	utils.WriteSuccessResponse(w, "profile picture uploaded successfully", map[string]string{
-		"filename": fileName,
-	})
 }
 
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
