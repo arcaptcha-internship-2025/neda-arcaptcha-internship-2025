@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"log"
+	"slices"
 
 	"errors"
 	"net/http"
@@ -10,8 +11,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/http/utils"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/utils"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
 type contextKey string
@@ -26,7 +27,7 @@ type CustomClaims struct {
 
 var jwtSecret = []byte("arcaptcha-project")
 
-func JWTAuthMiddleware(userMode models.UserType) func(http.Handler) http.Handler {
+func JWTAuthMiddleware(userMode ...models.UserType) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -36,7 +37,7 @@ func JWTAuthMiddleware(userMode models.UserType) func(http.Handler) http.Handler
 			}
 
 			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-			userID, err := ValidateToken(tokenStr, userMode)
+			userID, err := ValidateToken(tokenStr, userMode...)
 			if err != nil {
 				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 				return
@@ -69,7 +70,7 @@ func GenerateToken(userID string, userType models.UserType) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
-func ValidateToken(tokenStr string, userType models.UserType) (string, error) {
+func ValidateToken(tokenStr string, userType ...models.UserType) (string, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
 	})
@@ -82,8 +83,8 @@ func ValidateToken(tokenStr string, userType models.UserType) (string, error) {
 		return "", errors.New("could not parse claims")
 	}
 
-	if claims.UserType != userType {
-		return "", errors.New("user type mismatch")
+	if !slices.Contains(userType, claims.UserType) {
+		return "", errors.New("unauthorized user type")
 	}
 
 	decryptedID, err := utils.Decrypt(claims.EncryptedUserID)
@@ -94,13 +95,11 @@ func ValidateToken(tokenStr string, userType models.UserType) (string, error) {
 	return decryptedID, nil
 }
 
-// logs all incoming requests
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		log.Printf("%s %s %s - Started", r.RemoteAddr, r.Method, r.URL.Path)
 
-		//custom ResponseWriter to capture status code
 		ww := &responseWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(ww, r)
@@ -111,7 +110,6 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// handles CORS headers
 func CorsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
