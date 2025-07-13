@@ -2,9 +2,10 @@ package repositories
 
 import (
 	"context"
+	"log"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
 const (
@@ -24,19 +25,20 @@ type ApartmentRepository interface {
 	GetApartmentByID(id int) (*models.Apartment, error)
 	UpdateApartment(ctx context.Context, apartment models.Apartment) error
 	DeleteApartment(id int) error
+	GetAllApartments(ctx context.Context) ([]models.Apartment, error)
 }
 
 type apartmentRepositoryImpl struct {
 	db *sqlx.DB
 }
 
-func NewApartmentRepository(autoCreate bool, db *sqlx.DB) (ApartmentRepository, error) {
+func NewApartmentRepository(autoCreate bool, db *sqlx.DB) ApartmentRepository {
 	if autoCreate {
 		if _, err := db.Exec(CREATE_APARTMENTS_TABLE); err != nil {
-			return nil, err
+			log.Fatalf("failed to create apartments table: %v", err)
 		}
 	}
-	return &apartmentRepositoryImpl{db: db}, nil
+	return &apartmentRepositoryImpl{db: db}
 }
 
 func (r *apartmentRepositoryImpl) CreateApartment(ctx context.Context, apartment models.Apartment) (int, error) {
@@ -73,4 +75,15 @@ func (r *apartmentRepositoryImpl) DeleteApartment(id int) error {
 	query := `DELETE FROM apartments WHERE id = $1`
 	_, err := r.db.Exec(query, id)
 	return err
+}
+
+func (r *apartmentRepositoryImpl) GetAllApartments(ctx context.Context) ([]models.Apartment, error) {
+	var apartments []models.Apartment
+	query := `SELECT id, apartment_name, address, units_count, manager_id, created_at, updated_at 
+			  FROM apartments`
+	err := r.db.SelectContext(ctx, &apartments, query)
+	if err != nil {
+		return nil, err
+	}
+	return apartments, nil
 }

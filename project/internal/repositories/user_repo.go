@@ -2,9 +2,10 @@ package repositories
 
 import (
 	"context"
+	"log"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
 const (
@@ -36,13 +37,13 @@ type userRepositoryImpl struct {
 	db *sqlx.DB
 }
 
-func NewUserRepository(autoCreate bool, db *sqlx.DB) (UserRepository, error) {
+func NewUserRepository(autoCreate bool, db *sqlx.DB) UserRepository {
 	if autoCreate {
 		if _, err := db.Exec(CREATE_USERS_TABLE); err != nil {
-			return nil, err
+			log.Fatalf("failed to create users table: %v", err)
 		}
 	}
-	return &userRepositoryImpl{db: db}, nil
+	return &userRepositoryImpl{db: db}
 }
 
 func (r *userRepositoryImpl) CreateUser(ctx context.Context, user models.User) (int, error) {

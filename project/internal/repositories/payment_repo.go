@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
 const (
@@ -33,13 +33,13 @@ type paymentRepositoryImpl struct {
 	db *sqlx.DB
 }
 
-func NewPaymentRepository(autoCreate bool, db *sqlx.DB) (PaymentRepository, error) {
+func NewPaymentRepository(autoCreate bool, db *sqlx.DB) PaymentRepository {
 	if autoCreate {
 		if _, err := db.Exec(CREATE_PAYMENTS_TABLE); err != nil {
-			return nil, err
+			log.Fatalf("failed to create payments table: %v", err)
 		}
 	}
-	return &paymentRepositoryImpl{db: db}, nil
+	return &paymentRepositoryImpl{db: db}
 }
 
 func (r *paymentRepositoryImpl) CreatePayment(ctx context.Context, payment models.Payment) (int, error) {

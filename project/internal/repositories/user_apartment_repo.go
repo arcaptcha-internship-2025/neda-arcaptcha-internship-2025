@@ -2,9 +2,10 @@ package repositories
 
 import (
 	"context"
+	"log"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
 const (
@@ -20,6 +21,7 @@ const (
 
 type UserApartmentRepository interface {
 	CreateUserApartment(ctx context.Context, user_apartment models.User_apartment) error
+	GetResidentsInApartment(apartmentID int) ([]models.User, error)
 	GetUserApartmentByID(userID, apartmentID int) (*models.User_apartment, error)
 	UpdateUserApartment(ctx context.Context, user_apartment models.User_apartment) error
 	DeleteUserApartment(userID, apartmentID int) error
@@ -29,13 +31,13 @@ type userApartmentRepositoryImpl struct {
 	db *sqlx.DB
 }
 
-func NewUserApartmentRepository(autoCreate bool, db *sqlx.DB) (UserApartmentRepository, error) {
+func NewUserApartmentRepository(autoCreate bool, db *sqlx.DB) UserApartmentRepository {
 	if autoCreate {
 		if _, err := db.Exec(CREATE_USER_APARTMENT_TABLE); err != nil {
-			return nil, err
+			log.Fatalf("failed to create user_apartments table: %v", err)
 		}
 	}
-	return &userApartmentRepositoryImpl{db: db}, nil
+	return &userApartmentRepositoryImpl{db: db}
 }
 
 func (r *userApartmentRepositoryImpl) CreateUserApartment(ctx context.Context, user_apartment models.User_apartment) error {
@@ -77,4 +79,18 @@ func (r *userApartmentRepositoryImpl) DeleteUserApartment(userID, apartmentID in
 		return err
 	}
 	return nil
+}
+
+func (r *userApartmentRepositoryImpl) GetResidentsInApartment(apartmentID int) ([]models.User, error) {
+	var residents []models.User
+	query := `SELECT u.id, u.username, u.email, u.phone, u.full_name, u.user_type, 
+			  ua.is_manager, ua.created_at, ua.updated_at 
+			  FROM users u 
+			  JOIN user_apartments ua ON u.id = ua.user_id 
+			  WHERE ua.apartment_id = $1`
+	err := r.db.Select(&residents, query, apartmentID)
+	if err != nil {
+		return nil, err
+	}
+	return residents, nil
 }

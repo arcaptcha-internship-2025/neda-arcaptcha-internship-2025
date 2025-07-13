@@ -2,9 +2,10 @@ package repositories
 
 import (
 	"context"
+	"log"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025.git/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
 const (
@@ -33,13 +34,13 @@ type billRepositoryImpl struct {
 	db *sqlx.DB
 }
 
-func NewBillRepository(autoCreate bool, db *sqlx.DB) (BillRepository, error) {
+func NewBillRepository(autoCreate bool, db *sqlx.DB) BillRepository {
 	if autoCreate {
 		if _, err := db.Exec(CREATE_BILLS_TABLE); err != nil {
-			return nil, err
+			log.Fatalf("failed to create bills table: %v", err)
 		}
 	}
-	return &billRepositoryImpl{db: db}, nil
+	return &billRepositoryImpl{db: db}
 }
 
 func (r *billRepositoryImpl) CreateBill(ctx context.Context, bill models.Bill) (int, error) {
