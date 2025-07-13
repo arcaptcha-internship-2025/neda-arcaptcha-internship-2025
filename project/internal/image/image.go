@@ -17,7 +17,7 @@ type imageImpl struct {
 	bucket      string
 }
 
-func Newimage(minioEndpoint, accessKey, secretKey, bucket string) Image {
+func NewImage(minioEndpoint, accessKey, secretKey, bucket string) Image {
 	minioClient, err := minio.New(minioEndpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: true,

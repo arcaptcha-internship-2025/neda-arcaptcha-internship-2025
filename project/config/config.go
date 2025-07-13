@@ -9,6 +9,8 @@ import (
 type Config struct {
 	Server   Server   `yaml:"server"`
 	Postgres Postgres `yaml:"postgres"`
+	Minio    Minio    `yaml:"minio"`
+	Redis    Redis    `yaml:"redis"`
 }
 
 type Server struct {
@@ -22,6 +24,19 @@ type Postgres struct {
 	Password   string `yaml:"password"`
 	Database   string `yaml:"database"`
 	AutoCreate bool   `yaml:"autocreate"`
+}
+
+type Minio struct {
+	Endpoint  string `yaml:"endpoint"`
+	AccessKey string `yaml:"access_key"`
+	SecretKey string `yaml:"secret_key"`
+	Bucket    string `yaml:"bucket"`
+}
+
+type Redis struct {
+	Address  string `yaml:"address"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 func InitConfig(filename string) (*Config, error) {
