@@ -1,4 +1,4 @@
-# factory method design pattern in go - comprehensive guide
+# factory method design pattern in go
 
 ## what is it
 
