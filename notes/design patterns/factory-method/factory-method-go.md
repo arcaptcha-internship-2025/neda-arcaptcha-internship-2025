@@ -10,7 +10,7 @@ in go, since there's no classic oop inheritance, we achieve this through interfa
 
 ## why use it
 
-- **abstracts creation**: keeps client code decoupled from concrete pizza types
+- **abstracts creation**: keeps client code decoupled from concrete types
 - **supports open/closed principle**: supports the open/closed principle, allowing for the addition of new product types without modifying existing client code
 - **simplifies unit testing**: with the use of interfaces and dependency injection, it becomes easier to write unit tests for the client code
 - **centralizes creation logic**: useful for caching, pooling, or conditional instantiation
