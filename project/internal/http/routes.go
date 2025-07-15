@@ -54,7 +54,7 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartments/{apartment-id}/residents", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetResidentsInApartment,
 	}))
-	managerRoutes.HandleFunc("/apartment/invite", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/{apartment-id}/invite/resident/{telegram-username}", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
 

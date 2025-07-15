@@ -44,7 +44,8 @@ func NewApartmantService(cfg *config.Config) *ApartmantService {
 		shutdownCtx: ctx,
 		cancelFunc:  cancel,
 	}
-}
+} //not config as a parameter
+//put everything in start inti newapartmentservice
 
 func (s *ApartmantService) Start(serviceName string) error {
 	var err error
