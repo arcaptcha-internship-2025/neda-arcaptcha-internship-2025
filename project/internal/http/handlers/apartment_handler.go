@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/mux"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
@@ -35,7 +36,26 @@ func (h *ApartmentHandler) CreateApartment(w http.ResponseWriter, r *http.Reques
 
 	id, err := h.apartmentRepo.CreateApartment(r.Context(), apartment)
 	if err != nil {
-		http.Error(w, "Failed to create apartment: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "failed to create apartment: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	//manager should be added to user-apartment repo
+	//with the user id that this request was sent from and the apartment id in the body of req
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "failed to get user ID from context", http.StatusInternalServerError)
+		return
+	}
+
+	userApartment := models.User_apartment{
+		UserID:      userID,
+		ApartmentID: id,
+		IsManager:   true,
+	}
+
+	if err := h.userApartmentRepo.CreateUserApartment(r.Context(), userApartment); err != nil {
+		http.Error(w, "failed to assign manager to apartment: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -62,16 +82,25 @@ func (h *ApartmentHandler) GetApartmentByID(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(apartment)
 }
 
-func (h *ApartmentHandler) GetAllApartments(w http.ResponseWriter, r *http.Request) {
-	// Note: You'll need to add a GetAllApartments method to your repository interface
-	apartments, err := h.apartmentRepo.GetAllApartments(r.Context())
+func (h *ApartmentHandler) GetAllApartmentsForResident(w http.ResponseWriter, r *http.Request) {
+	//extracting userID from URL
+	vars := mux.Vars(r)
+	residentID, err := strconv.Atoi(vars["userID"])
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+	apartments, err := h.userApartmentRepo.GetAllApartmentsForAResident(residentID)
 	if err != nil {
 		http.Error(w, "Failed to get apartments: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(apartments)
+	if err := json.NewEncoder(w).Encode(apartments); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *ApartmentHandler) UpdateApartment(w http.ResponseWriter, r *http.Request) {

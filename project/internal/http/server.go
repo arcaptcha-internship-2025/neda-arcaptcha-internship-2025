@@ -29,11 +29,11 @@ type ApartmantService struct {
 	shutdownWG       sync.WaitGroup
 	shutdownCtx      context.Context
 	cancelFunc       context.CancelFunc
-	userHandler      *handlers.UserHandler
 	db               *sqlx.DB
-	apartmentHandler *handlers.ApartmentHandler
 	minioClient      *minio.Client
 	redisClient      *goredis.Client
+	userHandler      *handlers.UserHandler
+	apartmentHandler *handlers.ApartmentHandler
 	billHandler      *handlers.BillHandler
 }
 

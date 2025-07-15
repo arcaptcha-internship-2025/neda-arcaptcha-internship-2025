@@ -25,7 +25,6 @@ type ApartmentRepository interface {
 	GetApartmentByID(id int) (*models.Apartment, error)
 	UpdateApartment(ctx context.Context, apartment models.Apartment) error
 	DeleteApartment(id int) error
-	GetAllApartments(ctx context.Context) ([]models.Apartment, error)
 }
 
 type apartmentRepositoryImpl struct {
@@ -75,15 +74,4 @@ func (r *apartmentRepositoryImpl) DeleteApartment(id int) error {
 	query := `DELETE FROM apartments WHERE id = $1`
 	_, err := r.db.Exec(query, id)
 	return err
-}
-
-func (r *apartmentRepositoryImpl) GetAllApartments(ctx context.Context) ([]models.Apartment, error) {
-	var apartments []models.Apartment
-	query := `SELECT id, apartment_name, address, units_count, manager_id, created_at, updated_at 
-			  FROM apartments`
-	err := r.db.SelectContext(ctx, &apartments, query)
-	if err != nil {
-		return nil, err
-	}
-	return apartments, nil
 }

@@ -42,8 +42,8 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/get", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetApartmentByID,
 	}))
-	managerRoutes.HandleFunc("/apartment/get-all", s.methodHandler(map[string]http.HandlerFunc{
-		"GET": s.apartmentHandler.GetAllApartments,
+	managerRoutes.HandleFunc("/apartments/get-all/resident/{userID}", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.apartmentHandler.GetAllApartmentsForResident,
 	}))
 	managerRoutes.HandleFunc("/apartment/update", s.methodHandler(map[string]http.HandlerFunc{
 		"PUT": s.apartmentHandler.UpdateApartment,

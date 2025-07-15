@@ -25,6 +25,7 @@ type UserApartmentRepository interface {
 	GetUserApartmentByID(userID, apartmentID int) (*models.User_apartment, error)
 	UpdateUserApartment(ctx context.Context, user_apartment models.User_apartment) error
 	DeleteUserApartment(userID, apartmentID int) error
+	GetAllApartmentsForAResident(residentID int) ([]models.Apartment, error)
 }
 
 type userApartmentRepositoryImpl struct {
@@ -93,4 +94,17 @@ func (r *userApartmentRepositoryImpl) GetResidentsInApartment(apartmentID int) (
 		return nil, err
 	}
 	return residents, nil
+}
+
+func (r *userApartmentRepositoryImpl) GetAllApartmentsForAResident(residentID int) ([]models.Apartment, error) {
+	var apartments []models.Apartment
+	query := `SELECT a.id, a.apartment_name, a.address, a.units_count, a.manager_id, a.created_at, a.updated_at
+			  FROM apartments a
+			  JOIN user_apartments ua ON a.id = ua.apartment_id
+			  WHERE ua.user_id = $1`
+	err := r.db.Select(&apartments, query, residentID)
+	if err != nil {
+		return nil, err
+	}
+	return apartments, nil
 }
