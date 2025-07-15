@@ -1,10 +1,11 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
@@ -258,7 +259,9 @@ func (h *ApartmentHandler) LeaveApartment(w http.ResponseWriter, r *http.Request
 }
 
 func generateToken() (string, error) {
-	// Implement your token generation logic here
-	// For example, using crypto/rand
-	return "generated-token-" + strconv.FormatInt(time.Now().Unix(), 10), nil
+	bytes := make([]byte, 32) // 256-bit token
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
