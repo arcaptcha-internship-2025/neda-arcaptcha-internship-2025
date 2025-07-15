@@ -1,31 +1,88 @@
+// /project/internal/notification/notification.go
 package notification
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
 )
 
 type Notification interface {
-	SendNotification(ctx context.Context, message string) error
+	SendNotification(ctx context.Context, chatID int64, message string) error
+	SendInvitation(ctx context.Context, receiverUsername string, apartmentID int, token string) error
 }
 
 type notificationImpl struct {
-	baleClient  *http.Client
-	baleToken   string
-	baleBaseUrl string
+	httpClient *http.Client
+	botToken   string
+	baseURL    string
 }
 
-func NewNotification(cfg config.BaleConfig) Notification {
+func NewNotification(cfg config.TelegramConfig) Notification {
 	return &notificationImpl{
-		baleClient:  &http.Client{Timeout: cfg.Timeout},
-		baleToken:   cfg.ApiToken,
-		baleBaseUrl: cfg.BaseUrl,
+		httpClient: &http.Client{Timeout: cfg.Timeout},
+		botToken:   cfg.BotToken,
+		baseURL:    fmt.Sprintf("https://api.telegram.org/bot%s/", cfg.BotToken),
 	}
 }
 
-func (n *notificationImpl) SendNotification(ctx context.Context, message string) error {
-	n.baleClient.Post(n.baleBaseUrl+"/sendmessage", "", nil)
+func (n *notificationImpl) SendNotification(ctx context.Context, chatID int64, message string) error {
+	//assuming that chatid = user name(which is right when the chat is already started)
+	endpoint := n.baseURL + "sendMessage"
+	data := url.Values{}
+	data.Set("chat_id", fmt.Sprintf("%d", chatID))
+	data.Set("text", message)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := n.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send notification: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("telegram API returned non-200 status: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (n *notificationImpl) SendInvitation(ctx context.Context, receiverUsername string, apartmentID int, token string) error {
+	message := fmt.Sprintf(
+		"You've been invited to join apartment %d!\n\n"+
+			"Click this link to accept: http://yourapp.com/join?token=%s",
+		apartmentID, token,
+	)
+
+	endpoint := n.baseURL + "sendMessage"
+	data := url.Values{}
+	data.Set("chat_id", "@"+receiverUsername)
+	data.Set("text", message)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create invitation request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := n.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send invitation: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("telegram API returned non-200 status for invitation: %d", resp.StatusCode)
+	}
+
 	return nil
 }

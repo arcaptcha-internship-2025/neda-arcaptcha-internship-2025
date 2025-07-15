@@ -57,7 +57,6 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/{apartment-id}/invite/resident/{telegram-username}", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
-
 	// resident routes
 	residentRoutes := http.NewServeMux()
 	v1.Handle("/resident/", http.StripPrefix("/resident", middleware.JWTAuthMiddleware(models.Resident, models.Manager)(residentRoutes)))

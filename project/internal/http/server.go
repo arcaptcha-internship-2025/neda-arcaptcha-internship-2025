@@ -45,7 +45,7 @@ func NewApartmantService(cfg *config.Config) *ApartmantService {
 		cancelFunc:  cancel,
 	}
 } //not config as a parameter
-//put everything in start inti newapartmentservice
+// todo: move everything in start to newapartmentservice
 
 func (s *ApartmantService) Start(serviceName string) error {
 	var err error
@@ -64,7 +64,7 @@ func (s *ApartmantService) Start(serviceName string) error {
 		repositories.NewApartmentRepository(s.cfg.Postgres.AutoCreate, s.db),
 		repositories.NewUserApartmentRepository(s.cfg.Postgres.AutoCreate, s.db),
 		repositories.NewInvitationLinkRepository(s.redisClient),
-		notification.NewNotification(s.cfg.BaleConfig),
+		notification.NewNotification(s.cfg.TelegramConfig),
 	)
 	s.billHandler = handlers.NewBillHandler(repositories.NewBillRepository(s.cfg.Postgres.AutoCreate, s.db), image.NewImage(s.cfg.Minio.Endpoint, s.cfg.Minio.AccessKey, s.cfg.Minio.SecretKey, s.cfg.Minio.Bucket))
 

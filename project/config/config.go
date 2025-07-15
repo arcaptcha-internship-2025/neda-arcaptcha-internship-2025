@@ -8,11 +8,11 @@ import (
 )
 
 type Config struct {
-	Server     Server     `yaml:"server"`
-	Postgres   Postgres   `yaml:"postgres"`
-	Minio      Minio      `yaml:"minio"`
-	Redis      Redis      `yaml:"redis"`
-	BaleConfig BaleConfig `yaml:"bale_config"`
+	Server         Server         `yaml:"server"`
+	Postgres       Postgres       `yaml:"postgres"`
+	Minio          Minio          `yaml:"minio"`
+	Redis          Redis          `yaml:"redis"`
+	TelegramConfig TelegramConfig `yaml:"telegram_config"`
 }
 
 type Server struct {
@@ -41,9 +41,8 @@ type Redis struct {
 	DB       int    `yaml:"db"`
 }
 
-type BaleConfig struct {
-	ApiToken string        `yaml:"api_token"`
-	BaseUrl  string        `yaml:"api_token"`
+type TelegramConfig struct {
+	BotToken string        `yaml:bot_token`
 	Timeout  time.Duration `yaml:"timeout"`
 }
 

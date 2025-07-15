@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
@@ -82,6 +83,28 @@ func (h *ApartmentHandler) GetApartmentByID(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(apartment)
 }
 
+func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *http.Request) {
+	//getting apartment ID from path parameters
+	vars := mux.Vars(r)
+	apartmentID, err := strconv.Atoi(vars["apartment-id"])
+	if err != nil {
+		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
+		return
+	}
+
+	residents, err := h.userApartmentRepo.GetResidentsInApartment(apartmentID)
+	if err != nil {
+		http.Error(w, "Failed to get residents: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(residents); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 func (h *ApartmentHandler) GetAllApartmentsForResident(w http.ResponseWriter, r *http.Request) {
 	//extracting userID from URL
 	vars := mux.Vars(r)
@@ -134,38 +157,108 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *http.Request) {
-	//getting apartment ID from path parameters
+func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	apartmentID, err := strconv.Atoi(vars["apartment-id"])
+	if err != nil {
+		http.Error(w, "invalid apartment ID", http.StatusBadRequest)
+		return
+	}
+
+	telegramUsername := vars["telegram-username"]
+	if telegramUsername == "" {
+		http.Error(w, "telegram username is required", http.StatusBadRequest)
+		return
+	}
+
+	//invitation token
+	token, err := generateToken()
+	if err != nil {
+		http.Error(w, "failed to generate invitation token", http.StatusInternalServerError)
+		return
+	}
+
+	//storing invitation in redis
+	err = h.inviteLinkRepo.Set(r.Context(), telegramUsername, strconv.Itoa(apartmentID), token)
+	if err != nil {
+		http.Error(w, "failed to store invitation", http.StatusInternalServerError)
+		return
+	}
+
+	//send a telegram notification
+	err = h.notificationService.SendInvitation(r.Context(), telegramUsername, apartmentID, token)
+	if err != nil {
+		http.Error(w, "failed to send invitation", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "invitation sent"})
+}
+
+func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "token is required", http.StatusBadRequest)
+		return
+	}
+
+	//getting current user from context
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "failed to get user id from context", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify token and get apartment ID
+	apartmentID, err := h.inviteLinkRepo.VerifyToken(r.Context(), token)
+	if err != nil {
+		http.Error(w, "invalid or expired token", http.StatusBadRequest)
+		return
+	}
+
+	//add in user_apartment
+	userApartment := models.User_apartment{
+		UserID:      userID,
+		ApartmentID: apartmentID,
+		IsManager:   false,
+	}
+
+	if err := h.userApartmentRepo.CreateUserApartment(r.Context(), userApartment); err != nil {
+		http.Error(w, "failed to join apartment", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "joined apartment"})
+}
+
+func (h *ApartmentHandler) LeaveApartment(w http.ResponseWriter, r *http.Request) {
+	apartmentIDStr := r.URL.Query().Get("apartment_id")
+	apartmentID, err := strconv.Atoi(apartmentIDStr)
 	if err != nil {
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
 	}
 
-	residents, err := h.userApartmentRepo.GetResidentsInApartment(apartmentID)
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.userApartmentRepo.DeleteUserApartment(userID, apartmentID)
 	if err != nil {
-		http.Error(w, "Failed to get residents: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to leave apartment", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(residents); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "left apartment"})
 }
 
-func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {
-	panic("InviteUserToApartment not implemented yet")
-}
-
-func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request) {
-	panic("InviteUserToApartment not implemented yet")
-
-}
-
-func (h *ApartmentHandler) LeaveApartment(w http.ResponseWriter, r *http.Request) {
-	panic("InviteUserToApartment not implemented yet")
-
+func generateToken() (string, error) {
+	// Implement your token generation logic here
+	// For example, using crypto/rand
+	return "generated-token-" + strconv.FormatInt(time.Now().Unix(), 10), nil
 }
