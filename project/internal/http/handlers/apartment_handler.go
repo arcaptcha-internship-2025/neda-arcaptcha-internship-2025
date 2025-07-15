@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
@@ -159,6 +160,12 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "failed to get user ID from context", http.StatusInternalServerError)
+		return
+	}
+
 	vars := mux.Vars(r)
 	apartmentID, err := strconv.Atoi(vars["apartment-id"])
 	if err != nil {
@@ -172,23 +179,27 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	//invitation token
 	token, err := generateToken()
 	if err != nil {
 		http.Error(w, "failed to generate invitation token", http.StatusInternalServerError)
 		return
 	}
 
-	//storing invitation in redis
-	err = h.inviteLinkRepo.Set(r.Context(), telegramUsername, strconv.Itoa(apartmentID), token)
-	if err != nil {
+	invitation := models.InvitationLink{
+		SenderID:         userID,
+		ReceiverUsername: telegramUsername,
+		ApartmentID:      apartmentID,
+		Token:            token,
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+		Status:           models.InvitationStatusPending,
+	}
+
+	if err := h.inviteLinkRepo.CreateInvitation(r.Context(), invitation); err != nil {
 		http.Error(w, "failed to store invitation", http.StatusInternalServerError)
 		return
 	}
 
-	//send a telegram notification
-	err = h.notificationService.SendInvitation(r.Context(), telegramUsername, apartmentID, token)
-	if err != nil {
+	if err := h.notificationService.SendInvitation(r.Context(), invitation); err != nil {
 		http.Error(w, "failed to send invitation", http.StatusInternalServerError)
 		return
 	}
@@ -204,24 +215,26 @@ func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	//getting current user from context
 	userID, ok := r.Context().Value("user_id").(int)
 	if !ok {
-		http.Error(w, "failed to get user id from context", http.StatusInternalServerError)
+		http.Error(w, "failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
 
-	// Verify token and get apartment ID
-	apartmentID, err := h.inviteLinkRepo.VerifyToken(r.Context(), token)
+	inv, err := h.inviteLinkRepo.GetInvitationByToken(r.Context(), token)
 	if err != nil {
 		http.Error(w, "invalid or expired token", http.StatusBadRequest)
 		return
 	}
 
-	//add in user_apartment
+	if err := h.inviteLinkRepo.MarkInvitationUsed(r.Context(), token, 0); err != nil {
+		http.Error(w, "failed to update invitation status", http.StatusInternalServerError)
+		return
+	}
+
 	userApartment := models.User_apartment{
 		UserID:      userID,
-		ApartmentID: apartmentID,
+		ApartmentID: inv.ApartmentID,
 		IsManager:   false,
 	}
 
