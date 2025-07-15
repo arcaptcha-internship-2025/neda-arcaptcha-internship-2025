@@ -135,21 +135,25 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	id, err := strconv.Atoi(idStr)
+	//getting apartment ID from path parameters
+	vars := mux.Vars(r)
+	apartmentID, err := strconv.Atoi(vars["apartment-id"])
 	if err != nil {
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
 	}
 
-	residents, err := h.userApartmentRepo.GetResidentsInApartment(id)
+	residents, err := h.userApartmentRepo.GetResidentsInApartment(apartmentID)
 	if err != nil {
 		http.Error(w, "Failed to get residents: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(residents)
+	if err := json.NewEncoder(w).Encode(residents); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {

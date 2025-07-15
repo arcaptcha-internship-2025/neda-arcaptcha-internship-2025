@@ -51,7 +51,7 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/delete", s.methodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.apartmentHandler.DeleteApartment,
 	}))
-	managerRoutes.HandleFunc("/apartment/residents", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartments/{apartment-id}/residents", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetResidentsInApartment,
 	}))
 	managerRoutes.HandleFunc("/apartment/invite", s.methodHandler(map[string]http.HandlerFunc{
