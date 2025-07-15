@@ -6,16 +6,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
 type Notification interface {
 	SendNotification(ctx context.Context, chatID int64, message string) error
-	SendInvitation(ctx context.Context, receiverUsername string, apartmentID int, token string) error
+	SendInvitation(ctx context.Context, inv models.InvitationLink) error
 }
-
 type notificationImpl struct {
 	httpClient *http.Client
 	botToken   string
@@ -56,16 +57,23 @@ func (n *notificationImpl) SendNotification(ctx context.Context, chatID int64, m
 	return nil
 }
 
-func (n *notificationImpl) SendInvitation(ctx context.Context, receiverUsername string, apartmentID int, token string) error {
+func (n *notificationImpl) SendInvitation(ctx context.Context, inv models.InvitationLink) error {
 	message := fmt.Sprintf(
 		"You've been invited to join apartment %d!\n\n"+
 			"Click this link to accept: http://yourapp.com/join?token=%s",
-		apartmentID, token,
+		inv.ApartmentID, inv.Token,
 	)
 
 	endpoint := n.baseURL + "sendMessage"
 	data := url.Values{}
-	data.Set("chat_id", "@"+receiverUsername)
+
+	//trying to use chat id if available, otherwise fall back to username
+	if inv.ChatID != nil {
+		data.Set("chat_id", strconv.FormatInt(*inv.ChatID, 10))
+	} else {
+		data.Set("chat_id", "@"+inv.ReceiverUsername)
+	}
+
 	data.Set("text", message)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(data.Encode()))
