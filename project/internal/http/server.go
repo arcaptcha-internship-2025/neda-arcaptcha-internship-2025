@@ -13,7 +13,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/minio/minio-go/v7"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/app"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/handlers"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/utils"
@@ -37,38 +36,47 @@ type ApartmantService struct {
 	billHandler      *handlers.BillHandler
 }
 
-func NewApartmantService(cfg *config.Config) *ApartmantService {
+func NewApartmantService(
+	cfg *config.Config,
+	db *sqlx.DB,
+	minioClient *minio.Client,
+	redisClient *goredis.Client,
+	userRepo repositories.UserRepository,
+	apartmentRepo repositories.ApartmentRepository,
+	userApartmentRepo repositories.UserApartmentRepository,
+	inviteLinkRepo repositories.InviteLinkFlagRepo,
+	notificationService notification.Notification,
+	billRepo repositories.BillRepository,
+	imageService image.Image,
+) *ApartmantService {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	userHandler := handlers.NewUserHandler(userRepo)
+	apartmentHandler := handlers.NewApartmentHandler(
+		apartmentRepo,
+		userApartmentRepo,
+		inviteLinkRepo,
+		notificationService,
+	)
+	billHandler := handlers.NewBillHandler(billRepo, imageService)
+
 	return &ApartmantService{
-		cfg:         cfg,
-		shutdownCtx: ctx,
-		cancelFunc:  cancel,
+		cfg:              cfg,
+		shutdownCtx:      ctx,
+		cancelFunc:       cancel,
+		db:               db,
+		minioClient:      minioClient,
+		redisClient:      redisClient,
+		userHandler:      userHandler,
+		apartmentHandler: apartmentHandler,
+		billHandler:      billHandler,
 	}
-} //not config as a parameter
-// todo: move everything in start to newapartmentservice
+}
 
 func (s *ApartmantService) Start(serviceName string) error {
-	var err error
 	mux := http.NewServeMux()
-	s.db, err = app.ConnectToDatabase(s.cfg.Postgres)
-	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
-	}
-	s.minioClient, err = app.ConnectToMinio(s.cfg.Minio)
-	if err != nil {
-		log.Fatalf("failed to connect to Minio: %v", err)
-	}
-	s.redisClient = app.NewRedisClient(s.cfg.Redis)
-	s.userHandler = handlers.NewUserHandler(repositories.NewUserRepository(s.cfg.Postgres.AutoCreate, s.db))
-	s.apartmentHandler = handlers.NewApartmentHandler(
-		repositories.NewApartmentRepository(s.cfg.Postgres.AutoCreate, s.db),
-		repositories.NewUserApartmentRepository(s.cfg.Postgres.AutoCreate, s.db),
-		repositories.NewInvitationLinkRepository(s.redisClient),
-		notification.NewNotification(s.cfg.TelegramConfig),
-	)
-	s.billHandler = handlers.NewBillHandler(repositories.NewBillRepository(s.cfg.Postgres.AutoCreate, s.db), image.NewImage(s.cfg.Minio.Endpoint, s.cfg.Minio.AccessKey, s.cfg.Minio.SecretKey, s.cfg.Minio.Bucket))
-
 	s.addCommonRoutes(mux, serviceName)
+	s.SetupRoutes(mux)
 
 	s.server = &http.Server{
 		Addr:         s.cfg.Server.Port,
