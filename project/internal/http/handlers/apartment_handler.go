@@ -160,7 +160,7 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int)
+	userID, ok := r.Context().Value("user_id").(int) //managerid
 	if !ok {
 		http.Error(w, "failed to get user ID from context", http.StatusInternalServerError)
 		return

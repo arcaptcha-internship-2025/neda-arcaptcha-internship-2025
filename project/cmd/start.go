@@ -4,8 +4,11 @@ import (
 	"log"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/app"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http"
-
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/image"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
 	"github.com/spf13/cobra"
 )
 
@@ -22,7 +25,42 @@ func start(_ *cobra.Command, _ []string) {
 	if err != nil {
 		log.Fatalf("failed to initialize config: %v", err)
 	}
-	httpService := http.NewApartmantService(cfg)
+
+	db, err := app.ConnectToDatabase(cfg.Postgres)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+
+	minioClient, err := app.ConnectToMinio(cfg.Minio)
+	if err != nil {
+		log.Fatalf("failed to connect to MinIO: %v", err)
+	}
+
+	redisClient := app.NewRedisClient(cfg.Redis)
+
+	userRepo := repositories.NewUserRepository(cfg.Postgres.AutoCreate, db)
+	apartmentRepo := repositories.NewApartmentRepository(cfg.Postgres.AutoCreate, db)
+	userApartmentRepo := repositories.NewUserApartmentRepository(cfg.Postgres.AutoCreate, db)
+	inviteLinkRepo := repositories.NewInvitationLinkRepository(redisClient)
+	billRepo := repositories.NewBillRepository(cfg.Postgres.AutoCreate, db)
+
+	notificationService := notification.NewNotification(cfg.TelegramConfig)
+	imageService := image.NewImage(cfg.Minio.Endpoint, cfg.Minio.AccessKey, cfg.Minio.SecretKey, cfg.Minio.Bucket)
+
+	httpService := http.NewApartmantService(
+		cfg,
+		db,
+		minioClient,
+		redisClient,
+		userRepo,
+		apartmentRepo,
+		userApartmentRepo,
+		inviteLinkRepo,
+		notificationService,
+		billRepo,
+		imageService,
+	)
+
 	if err := httpService.Start("Apartment Service"); err != nil {
 		log.Fatalf("failed to start apartment service: %v", err)
 	}
