@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/stretchr/testify/assert"
 )
@@ -63,4 +65,35 @@ func TestJWTAuthMiddleware(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
+}
+
+func TestGenerateAndValidateToken(t *testing.T) {
+	//token generation and validation
+	userID := "123"
+	userType := models.Manager
+
+	token, err := GenerateToken(userID, userType)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	//valid token
+	validatedID, err := ValidateToken(token, userType)
+	assert.NoError(t, err)
+	assert.Equal(t, userID, validatedID)
+
+	//invalid user type
+	_, err = ValidateToken(token, models.Resident)
+	assert.Error(t, err)
+
+	//expired token
+	expiredToken := jwt.NewWithClaims(jwt.SigningMethodHS256, CustomClaims{
+		EncryptedUserID: "encrypted123",
+		UserType:        userType,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)),
+		},
+	})
+	signedExpiredToken, _ := expiredToken.SignedString(jwtSecret)
+	_, err = ValidateToken(signedExpiredToken, userType)
+	assert.Error(t, err)
 }
