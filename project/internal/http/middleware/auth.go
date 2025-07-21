@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"slices"
 
 	"errors"
 	"net/http"
@@ -32,17 +32,21 @@ func JWTAuthMiddleware(userMode ...models.UserType) func(http.Handler) http.Hand
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				http.Error(w, "Unauthorized - no token", http.StatusUnauthorized)
 				return
 			}
 
 			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+			log.Printf("Validating token: %s", tokenStr)
+
 			userID, err := ValidateToken(tokenStr, userMode...)
 			if err != nil {
-				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+				log.Printf("Token validation failed: %v", err)
+				http.Error(w, "Invalid or expired token: "+err.Error(), http.StatusUnauthorized)
 				return
 			}
 
+			log.Printf("Token validated successfully for user: %s", userID)
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -52,7 +56,7 @@ func JWTAuthMiddleware(userMode ...models.UserType) func(http.Handler) http.Hand
 func GenerateToken(userID string, userType models.UserType) (string, error) {
 	encryptedID, err := utils.Encrypt(userID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to encrypt user ID: %w", err)
 	}
 
 	expirationTime := time.Now().Add(24 * time.Hour)
@@ -74,22 +78,37 @@ func ValidateToken(tokenStr string, userType ...models.UserType) (string, error)
 	token, err := jwt.ParseWithClaims(tokenStr, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
 	})
-	if err != nil || !token.Valid {
+
+	if err != nil {
+		return "", fmt.Errorf("token parsing failed: %w", err) // Wrap the error
+	}
+
+	if !token.Valid {
 		return "", errors.New("invalid token")
 	}
 
 	claims, ok := token.Claims.(*CustomClaims)
 	if !ok {
-		return "", errors.New("could not parse claims")
+		return "", errors.New("invalid token claims")
 	}
 
-	if !slices.Contains(userType, claims.UserType) {
-		return "", errors.New("unauthorized user type")
+	//skipping user type validation if no types are specified
+	if len(userType) > 0 {
+		validType := false
+		for _, t := range userType {
+			if t == claims.UserType {
+				validType = true
+				break
+			}
+		}
+		if !validType {
+			return "", fmt.Errorf("invalid user type, got %s want one of %v", claims.UserType, userType)
+		}
 	}
 
 	decryptedID, err := utils.Decrypt(claims.EncryptedUserID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to decrypt user ID: %w", err)
 	}
 
 	return decryptedID, nil

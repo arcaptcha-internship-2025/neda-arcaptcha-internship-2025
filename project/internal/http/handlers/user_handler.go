@@ -56,8 +56,9 @@ func (h *UserHandler) getCurrentUserID(r *http.Request) (int, error) {
 }
 
 func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
-	var req models.User
+	var req CreateUserRequest // instead of models.User
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 

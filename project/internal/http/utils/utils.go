@@ -4,14 +4,21 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"io"
 )
 
-var aesKey = []byte("secret-for-user-id-encryption")
+// for creating a proper 32-byte key from your existing key
+func getAESKey() []byte {
+	hash := sha256.Sum256([]byte("secret-for-user-id-encryption"))
+	return hash[:]
+}
 
 func Encrypt(plainText string) (string, error) {
+	aesKey := getAESKey() //exactly 32 bytes
+
 	block, err := aes.NewCipher(aesKey)
 	if err != nil {
 		return "", err
@@ -32,6 +39,8 @@ func Encrypt(plainText string) (string, error) {
 }
 
 func Decrypt(cipherText string) (string, error) {
+	aesKey := getAESKey() // This ensures exactly 32 bytes
+
 	data, err := base64.URLEncoding.DecodeString(cipherText)
 	if err != nil {
 		return "", err

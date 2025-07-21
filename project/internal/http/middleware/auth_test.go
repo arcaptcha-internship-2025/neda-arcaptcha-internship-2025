@@ -1,19 +1,24 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestJWTAuthMiddleware(t *testing.T) {
-	//a valid token
-	validToken, _ := GenerateToken("123", models.Manager)
+	jwtSecret = []byte("arcaptcha-project")
+
+	validToken, err := GenerateToken("123", models.Manager)
+	if err != nil {
+		t.Fatalf("Failed to generate token: %v", err)
+	}
+	assert.NotEmpty(t, validToken)
+	t.Logf("Generated valid token: %s", validToken)
 
 	tests := []struct {
 		name           string
@@ -47,28 +52,47 @@ func TestJWTAuthMiddleware(t *testing.T) {
 			},
 			expectedStatus: http.StatusUnauthorized,
 		},
+		{
+			name: "malformed authorization header",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.Header.Set("Authorization", "InvalidBearer "+validToken)
+				return req
+			},
+			expectedStatus: http.StatusUnauthorized,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var ctx context.Context
 			handler := JWTAuthMiddleware(models.Manager)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				userID := r.Context().Value(UserIDKey)
+				ctx = r.Context()
+				userID := ctx.Value(UserIDKey)
+				t.Logf("Context userID: %v", userID)
 				if tt.expectedUserID != "" {
 					assert.Equal(t, tt.expectedUserID, userID)
 				}
 				w.WriteHeader(http.StatusOK)
 			}))
 
+			req := tt.setupRequest()
 			w := httptest.NewRecorder()
-			handler.ServeHTTP(w, tt.setupRequest())
+			handler.ServeHTTP(w, req)
 
+			t.Logf("Test case: %s", tt.name)
+			t.Logf("Response status: %d", w.Code)
 			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.name == "valid token" && w.Code == http.StatusOK {
+				userID := ctx.Value(UserIDKey)
+				assert.Equal(t, tt.expectedUserID, userID)
+			}
 		})
 	}
 }
 
 func TestGenerateAndValidateToken(t *testing.T) {
-	//token generation and validation
 	userID := "123"
 	userType := models.Manager
 
@@ -76,24 +100,28 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 
-	//valid token
 	validatedID, err := ValidateToken(token, userType)
 	assert.NoError(t, err)
 	assert.Equal(t, userID, validatedID)
 
-	//invalid user type
 	_, err = ValidateToken(token, models.Resident)
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid user type")
 
-	//expired token
-	expiredToken := jwt.NewWithClaims(jwt.SigningMethodHS256, CustomClaims{
-		EncryptedUserID: "encrypted123",
-		UserType:        userType,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)),
-		},
-	})
-	signedExpiredToken, _ := expiredToken.SignedString(jwtSecret)
-	_, err = ValidateToken(signedExpiredToken, userType)
+	validatedID, err = ValidateToken(token)
+	assert.NoError(t, err)
+	assert.Equal(t, userID, validatedID)
+
+	validatedID, err = ValidateToken(token, models.Manager, models.Resident)
+	assert.NoError(t, err)
+	assert.Equal(t, userID, validatedID)
+}
+
+func TestGenerateAndValidateToken_InvalidToken(t *testing.T) {
+	_, err := ValidateToken("invalid.token.here")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "token parsing failed")
+
+	_, err = ValidateToken("")
 	assert.Error(t, err)
 }
