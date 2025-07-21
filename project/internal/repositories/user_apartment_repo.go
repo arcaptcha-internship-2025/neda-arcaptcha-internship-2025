@@ -84,11 +84,10 @@ func (r *userApartmentRepositoryImpl) DeleteUserApartment(userID, apartmentID in
 
 func (r *userApartmentRepositoryImpl) GetResidentsInApartment(apartmentID int) ([]models.User, error) {
 	var residents []models.User
-	query := `SELECT u.id, u.username, u.email, u.phone, u.full_name, u.user_type, 
-			  ua.is_manager, ua.created_at, ua.updated_at 
-			  FROM users u 
-			  JOIN user_apartments ua ON u.id = ua.user_id 
-			  WHERE ua.apartment_id = $1`
+	query := `SELECT u.id, u.username, u.email, u.phone, u.full_name, u.user_type, u.created_at, u.updated_at
+          FROM users u
+          JOIN user_apartments ua ON u.id = ua.user_id
+          WHERE ua.apartment_id = $1`
 	err := r.db.Select(&residents, query, apartmentID)
 	if err != nil {
 		return nil, err
