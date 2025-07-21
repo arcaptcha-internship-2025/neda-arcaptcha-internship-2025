@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -47,11 +49,18 @@ func NewUserRepository(autoCreate bool, db *sqlx.DB) UserRepository {
 }
 
 func (r *userRepositoryImpl) CreateUser(ctx context.Context, user models.User) (int, error) {
-	query := `INSERT INTO users (username, password_hash, email, phone, full_name, user_type) 
-	          VALUES (:username, :password_hash, :email, :phone, :full_name, :user_type) 
+	query := `INSERT INTO users (username, password, email, phone, full_name, user_type) 
+	          VALUES ($1, $2, $3, $4, $5, $6) 
 	          RETURNING id`
 	var id int
-	if err := r.db.QueryRowxContext(ctx, query, user).Scan(&id); err != nil {
+	err := r.db.QueryRowContext(ctx, query,
+		user.Username,
+		user.Password,
+		user.Email,
+		user.Phone,
+		user.FullName,
+		user.UserType).Scan(&id)
+	if err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -59,21 +68,33 @@ func (r *userRepositoryImpl) CreateUser(ctx context.Context, user models.User) (
 
 func (r *userRepositoryImpl) GetUserByID(id int) (*models.User, error) {
 	query := `SELECT * FROM users WHERE id = $1`
+	fmt.Println("Executing query:", query)
 	var user models.User
-	if err := r.db.Get(&user, query, id); err != nil {
+	err := r.db.Get(&user, query, id)
+	if err != nil {
+		fmt.Println("Error:", err)
+		if err == sql.ErrNoRows {
+			return nil, err
+		}
 		return nil, err
 	}
 	return &user, nil
 }
 
 func (r *userRepositoryImpl) UpdateUser(ctx context.Context, user models.User) error {
-	query := `UPDATE users SET username = :username, password_hash = :password_hash, 
-	          email = :email, phone = :phone, full_name = :full_name, user_type = :user_type, 
-	          updated_at = CURRENT_TIMESTAMP WHERE id = :id`
+	query := `UPDATE users SET 
+		username = :username, 
+		password = :password, 
+		email = :email, 
+		phone = :phone, 
+		full_name = :full_name, 
+		user_type = :user_type, 
+		updated_at = CURRENT_TIMESTAMP 
+		WHERE id = :id`
+
 	_, err := r.db.NamedExecContext(ctx, query, user)
 	return err
 }
-
 func (r *userRepositoryImpl) DeleteUser(id int) error {
 	query := `DELETE FROM users WHERE id = $1`
 	_, err := r.db.Exec(query, id)
