@@ -262,6 +262,11 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.userRepo.DeleteUser(userID); err != nil {
+		// Check if the error is because the user doesn't exist
+		if err == sql.ErrNoRows {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "user not found")
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to delete user")
 		return
 	}

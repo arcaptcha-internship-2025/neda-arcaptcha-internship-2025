@@ -200,7 +200,18 @@ func TestUserHandler_Login(t *testing.T) {
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
 				json.Unmarshal(w.Body.Bytes(), &response)
-				assert.NotEmpty(t, response["token"])
+
+				//response structure is: {"success": true, "message": "...", "data": {...}}
+				//so we need to access the token from the data field
+				data, ok := response["data"]
+				assert.True(t, ok, "Expected 'data' field in response")
+
+				dataMap, ok := data.(map[string]interface{})
+				assert.True(t, ok, "Expected 'data' to be a map")
+
+				token, exists := dataMap["token"]
+				assert.True(t, exists, "Expected 'token' field in data")
+				assert.NotEmpty(t, token, "Token should not be empty")
 			}
 			mockRepo.AssertExpectations(t)
 		})
@@ -231,7 +242,20 @@ func TestUserHandler_GetProfile(t *testing.T) {
 
 		var response map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &response)
-		assert.Equal(t, "testuser", response["username"])
+
+		//accessing the user data from the nested "data" field
+		data, ok := response["data"]
+		assert.True(t, ok, "Expected 'data' field in response")
+
+		userData, ok := data.(map[string]interface{})
+		assert.True(t, ok, "Expected 'data' to be a map")
+
+		assert.Equal(t, "testuser", userData["username"])
+		assert.Equal(t, "test@example.com", userData["email"])
+
+		// Verify the response structure
+		assert.Equal(t, true, response["success"])
+		assert.Equal(t, "profile retrieved successfully", response["message"])
 	})
 
 	t.Run("unauthenticated", func(t *testing.T) {
@@ -241,6 +265,11 @@ func TestUserHandler_GetProfile(t *testing.T) {
 		handler.GetProfile(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.Equal(t, false, response["success"])
+		assert.Equal(t, "authentication required", response["message"])
 	})
 }
 
