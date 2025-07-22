@@ -1,4 +1,3 @@
-// /project/internal/notification/notification.go
 package notification
 
 import (
@@ -13,12 +12,17 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 )
 
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type Notification interface {
 	SendNotification(ctx context.Context, chatID int64, message string) error
 	SendInvitation(ctx context.Context, inv models.InvitationLink) error
 }
+
 type notificationImpl struct {
-	httpClient *http.Client
+	httpClient HTTPClient
 	botToken   string
 	baseURL    string
 }
@@ -32,7 +36,6 @@ func NewNotification(cfg config.TelegramConfig) Notification {
 }
 
 func (n *notificationImpl) SendNotification(ctx context.Context, chatID int64, message string) error {
-	//assuming that chatid = user name(which is right when the chat is already started)
 	endpoint := n.baseURL + "sendMessage"
 	data := url.Values{}
 	data.Set("chat_id", fmt.Sprintf("%d", chatID))
@@ -67,7 +70,6 @@ func (n *notificationImpl) SendInvitation(ctx context.Context, inv models.Invita
 	endpoint := n.baseURL + "sendMessage"
 	data := url.Values{}
 
-	//trying to use chat id if available, otherwise fall back to username
 	if inv.ChatID != nil {
 		data.Set("chat_id", strconv.FormatInt(*inv.ChatID, 10))
 	} else {
