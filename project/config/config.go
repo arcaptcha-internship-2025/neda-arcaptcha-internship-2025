@@ -42,7 +42,7 @@ type Redis struct {
 }
 
 type TelegramConfig struct {
-	BotToken string        `yaml:bot_token`
+	BotToken string        `yaml:"bot_token"`
 	Timeout  time.Duration `yaml:"timeout"`
 }
 

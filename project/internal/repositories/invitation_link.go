@@ -2,7 +2,9 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -13,7 +15,9 @@ import (
 type InviteLinkFlagRepo interface {
 	CreateInvitation(ctx context.Context, inv models.InvitationLink) error
 	GetInvitationByToken(ctx context.Context, token string) (*models.InvitationLink, error)
-	MarkInvitationUsed(ctx context.Context, token string, chatID int64) error
+	MarkInvitationUsed(ctx context.Context, token string) error
+	MarkInvitationRejected(ctx context.Context, token string) error
+	GetInvitationsByUser(ctx context.Context, username string) ([]*models.InvitationLink, error)
 }
 
 type invitationLinkRepository struct {
@@ -24,83 +28,136 @@ type invitationLinkRepository struct {
 func NewInvitationLinkRepository(redisClient *goredis.Client) InviteLinkFlagRepo {
 	return &invitationLinkRepository{
 		redisClient: redisClient,
-		expiration:  24 * time.Hour, // Set default expiration
+		expiration:  24 * time.Hour,
 	}
 }
 
 func (r *invitationLinkRepository) CreateInvitation(ctx context.Context, inv models.InvitationLink) error {
-	//serializ invitation data
-	data := map[string]interface{}{
-		"sender_id":         inv.SenderID,
-		"receiver_username": inv.ReceiverUsername,
-		"apartment_id":      inv.ApartmentID,
-		"status":            inv.Status,
-		"expires_at":        inv.ExpiresAt.Format(time.RFC3339),
+	//serializing invitation data as json
+	invData, err := json.Marshal(inv)
+	if err != nil {
+		return fmt.Errorf("failed to marshal invitation: %w", err)
 	}
 
-	if inv.ChatID != nil {
-		data["chat_id"] = *inv.ChatID
-	}
-
-	//store using pipeline for atomic operations
+	//storing with pipeline for atomic operations
 	pipe := r.redisClient.TxPipeline()
 
-	//stores main invitation data
-	pipe.HSet(ctx, "invitation:"+inv.Token, data)
+	//storing main invitation data
+	pipe.Set(ctx, "invitation:"+inv.Token, invData, r.expiration)
 
-	pipe.Expire(ctx, "invitation:"+inv.Token, r.expiration)
+	//creating index by username for tracking user's invitations
+	pipe.SAdd(ctx, "user_invitations:"+inv.ReceiverUsername, inv.Token)
+	pipe.Expire(ctx, "user_invitations:"+inv.ReceiverUsername, r.expiration)
 
-	//creating index by username:apartment for tracking
-	pipe.Set(ctx, "invitation_index:"+inv.ReceiverUsername+":"+strconv.Itoa(inv.ApartmentID),
-		inv.Token, r.expiration)
+	//creating index by apartment for tracking apartment invitations
+	pipe.SAdd(ctx, "apartment_invitations:"+strconv.Itoa(inv.ApartmentID), inv.Token)
+	pipe.Expire(ctx, "apartment_invitations:"+strconv.Itoa(inv.ApartmentID), r.expiration)
 
-	_, err := pipe.Exec(ctx)
+	_, err = pipe.Exec(ctx)
 	return err
 }
 
 func (r *invitationLinkRepository) GetInvitationByToken(ctx context.Context, token string) (*models.InvitationLink, error) {
-	//getting all fields from hash
-	result, err := r.redisClient.HGetAll(ctx, "invitation:"+token).Result()
+	//getting invitation data
+	result, err := r.redisClient.Get(ctx, "invitation:"+token).Result()
 	if err != nil {
-		return nil, err
-	}
-	if len(result) == 0 {
-		return nil, errors.New("invitation not found")
-	}
-
-	//parsing fields
-	inv := &models.InvitationLink{
-		Token:            token,
-		ReceiverUsername: result["receiver_username"],
-		Status:           models.InvitationStatus(result["status"]),
-	}
-
-	//parsing numeric fields
-	if senderID, err := strconv.Atoi(result["sender_id"]); err == nil {
-		inv.SenderID = senderID
-	}
-	if apartmentID, err := strconv.Atoi(result["apartment_id"]); err == nil {
-		inv.ApartmentID = apartmentID
-	}
-	if chatIDStr, ok := result["chat_id"]; ok {
-		if chatID, err := strconv.ParseInt(chatIDStr, 10, 64); err == nil {
-			inv.ChatID = &chatID
+		if err == goredis.Nil {
+			return nil, errors.New("invitation not found or expired")
 		}
-	}
-	if expiresAt, err := time.Parse(time.RFC3339, result["expires_at"]); err == nil {
-		inv.ExpiresAt = expiresAt
+		return nil, fmt.Errorf("failed to get invitation: %w", err)
 	}
 
-	return inv, nil
+	//unmarshal json data
+	var inv models.InvitationLink
+	if err := json.Unmarshal([]byte(result), &inv); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal invitation: %w", err)
+	}
+
+	if time.Now().After(inv.ExpiresAt) {
+		r.MarkInvitationExpired(ctx, token)
+		return nil, errors.New("invitation has expired")
+	}
+
+	return &inv, nil
 }
 
-func (r *invitationLinkRepository) MarkInvitationUsed(ctx context.Context, token string, chatID int64) error {
-	//updating status and chat id in a transaction
-	_, err := r.redisClient.TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
-		pipe.HSet(ctx, "invitation:"+token,
-			"status", string(models.InvitationStatusAccepted),
-			"chat_id", chatID)
-		return nil
-	})
+func (r *invitationLinkRepository) MarkInvitationUsed(ctx context.Context, token string) error {
+	//current invitation
+	inv, err := r.GetInvitationByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	inv.Status = models.InvitationStatusAccepted
+
+	//marshal and store updated data
+	invData, err := json.Marshal(inv)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated invitation: %w", err)
+	}
+
+	//storing updated invitation with remaining TTL
+	ttl := r.redisClient.TTL(ctx, "invitation:"+token).Val()
+	err = r.redisClient.Set(ctx, "invitation:"+token, invData, ttl).Err()
 	return err
+}
+
+func (r *invitationLinkRepository) MarkInvitationRejected(ctx context.Context, token string) error {
+	//current invitation
+	inv, err := r.GetInvitationByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	inv.Status = models.InvitationStatusRejected
+
+	//marshaling and storing updated data
+	invData, err := json.Marshal(inv)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated invitation: %w", err)
+	}
+
+	//storing updated invitation with remaining ttl
+	ttl := r.redisClient.TTL(ctx, "invitation:"+token).Val()
+	err = r.redisClient.Set(ctx, "invitation:"+token, invData, ttl).Err()
+	return err
+}
+
+func (r *invitationLinkRepository) MarkInvitationExpired(ctx context.Context, token string) error {
+	//current invitation
+	inv, err := r.GetInvitationByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	inv.Status = models.InvitationStatusExpired
+
+	invData, err := json.Marshal(inv)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated invitation: %w", err)
+	}
+
+	ttl := r.redisClient.TTL(ctx, "invitation:"+token).Val()
+	err = r.redisClient.Set(ctx, "invitation:"+token, invData, ttl).Err()
+	return err
+}
+
+func (r *invitationLinkRepository) GetInvitationsByUser(ctx context.Context, username string) ([]*models.InvitationLink, error) {
+	//getting all invitation tokens for the user
+	tokens, err := r.redisClient.SMembers(ctx, "user_invitations:"+username).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user invitations: %w", err)
+	}
+
+	var invitations []*models.InvitationLink
+	for _, token := range tokens {
+		inv, err := r.GetInvitationByToken(ctx, token)
+		if err != nil {
+			//skipping invalid/expired invitations butt log the error
+			continue
+		}
+		invitations = append(invitations, inv)
+	}
+
+	return invitations, nil
 }
