@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	CREATE_USER_APARTMENT_TABLE = `CREATE TABLE IF NOT EXIST user_apartments(
-		user_id SERIAL REFERENCE users(id) ON DELETE CASCADE,
-		apartment_id SERIAL REFERENCE apartments(id) ON DELETE CASCADE,
+	CREATE_USER_APARTMENT_TABLE = `CREATE TABLE IF NOT EXISTS user_apartments(
+		user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+		apartment_id INTEGER REFERENCES apartments(id) ON DELETE CASCADE,
 		is_manager BOOLEAN DEFAULT FALSE,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		PRIMARY KEY (user_id, apartment_id),
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (user_id, apartment_id)
 	);`
 )
 
@@ -26,6 +26,8 @@ type UserApartmentRepository interface {
 	UpdateUserApartment(ctx context.Context, user_apartment models.User_apartment) error
 	DeleteUserApartment(userID, apartmentID int) error
 	GetAllApartmentsForAResident(residentID int) ([]models.Apartment, error)
+	IsUserManagerOfApartment(ctx context.Context, userID, apartmentID int) (bool, error)
+	IsUserInApartment(ctx context.Context, userID, apartmentID int) (bool, error)
 }
 
 type userApartmentRepositoryImpl struct {
@@ -45,10 +47,7 @@ func (r *userApartmentRepositoryImpl) CreateUserApartment(ctx context.Context, u
 	query := `INSERT INTO user_apartments (user_id, apartment_id, is_manager) 
 			  VALUES (:user_id, :apartment_id, :is_manager)`
 	_, err := r.db.NamedExecContext(ctx, query, user_apartment)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (r *userApartmentRepositoryImpl) GetUserApartmentByID(userID, apartmentID int) (*models.User_apartment, error) {
@@ -67,19 +66,13 @@ func (r *userApartmentRepositoryImpl) UpdateUserApartment(ctx context.Context, u
 			  SET is_manager = :is_manager, updated_at = CURRENT_TIMESTAMP 
 			  WHERE user_id = :user_id AND apartment_id = :apartment_id`
 	_, err := r.db.NamedExecContext(ctx, query, user_apartment)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (r *userApartmentRepositoryImpl) DeleteUserApartment(userID, apartmentID int) error {
 	query := `DELETE FROM user_apartments WHERE user_id = $1 AND apartment_id = $2`
 	_, err := r.db.Exec(query, userID, apartmentID)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (r *userApartmentRepositoryImpl) GetResidentsInApartment(apartmentID int) ([]models.User, error) {
@@ -106,4 +99,28 @@ func (r *userApartmentRepositoryImpl) GetAllApartmentsForAResident(residentID in
 		return nil, err
 	}
 	return apartments, nil
+}
+
+func (r *userApartmentRepositoryImpl) IsUserManagerOfApartment(ctx context.Context, userID, apartmentID int) (bool, error) {
+	var isManager bool
+	query := `SELECT is_manager FROM user_apartments 
+			  WHERE user_id = $1 AND apartment_id = $2`
+	err := r.db.GetContext(ctx, &isManager, query, userID, apartmentID)
+	if err != nil {
+		return false, err
+	}
+	return isManager, nil
+}
+
+func (r *userApartmentRepositoryImpl) IsUserInApartment(ctx context.Context, userID, apartmentID int) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(
+		SELECT 1 FROM user_apartments 
+		WHERE user_id = $1 AND apartment_id = $2
+	)`
+	err := r.db.GetContext(ctx, &exists, query, userID, apartmentID)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }
