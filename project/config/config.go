@@ -16,7 +16,8 @@ type Config struct {
 }
 
 type Server struct {
-	Port string `yaml:"port"`
+	Port       string `yaml:"port"`
+	AppBaseURL string `yaml:"app_base_url" env:"APP_BASE_URL" env-default:"http://localhost:8080"`
 }
 
 type Postgres struct {

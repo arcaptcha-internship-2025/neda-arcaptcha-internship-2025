@@ -1,0 +1,14 @@
+server:
+  port: :8080
+  app_base_url: "https://apartment.com"
+
+postgres:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: password
+  dbname: apartment_db
+
+telegram_config:
+  bot_token: ""
+  timeout: 30s

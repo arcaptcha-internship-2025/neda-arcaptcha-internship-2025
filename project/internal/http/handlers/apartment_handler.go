@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,14 +20,22 @@ type ApartmentHandler struct {
 	userApartmentRepo   repositories.UserApartmentRepository
 	inviteLinkRepo      repositories.InviteLinkFlagRepo
 	notificationService notification.Notification
+	appBaseURL          string // base url for generating invite links
 }
 
-func NewApartmentHandler(apartmentRepo repositories.ApartmentRepository, userApartmentRepo repositories.UserApartmentRepository, inviteLinkRepo repositories.InviteLinkFlagRepo, notificationService notification.Notification) *ApartmentHandler {
+func NewApartmentHandler(
+	apartmentRepo repositories.ApartmentRepository,
+	userApartmentRepo repositories.UserApartmentRepository,
+	inviteLinkRepo repositories.InviteLinkFlagRepo,
+	notificationService notification.Notification,
+	appBaseURL string,
+) *ApartmentHandler {
 	return &ApartmentHandler{
 		apartmentRepo:       apartmentRepo,
 		userApartmentRepo:   userApartmentRepo,
 		inviteLinkRepo:      inviteLinkRepo,
 		notificationService: notificationService,
+		appBaseURL:          appBaseURL,
 	}
 }
 
@@ -44,7 +53,6 @@ func (h *ApartmentHandler) CreateApartment(w http.ResponseWriter, r *http.Reques
 	}
 
 	//manager should be added to user-apartment repo
-	//with the user id that this request was sent from and the apartment id in the body of req
 	userID, ok := r.Context().Value("user_id").(int)
 	if !ok {
 		http.Error(w, "failed to get user ID from context", http.StatusInternalServerError)
@@ -86,7 +94,6 @@ func (h *ApartmentHandler) GetApartmentByID(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *http.Request) {
-	//getting apartment ID from path parameters
 	vars := mux.Vars(r)
 	apartmentID, err := strconv.Atoi(vars["apartment-id"])
 	if err != nil {
@@ -108,13 +115,13 @@ func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *htt
 }
 
 func (h *ApartmentHandler) GetAllApartmentsForResident(w http.ResponseWriter, r *http.Request) {
-	//extracting userID from URL
 	vars := mux.Vars(r)
 	residentID, err := strconv.Atoi(vars["userID"])
 	if err != nil {
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
+
 	apartments, err := h.userApartmentRepo.GetAllApartmentsForAResident(residentID)
 	if err != nil {
 		http.Error(w, "Failed to get apartments: "+err.Error(), http.StatusInternalServerError)
@@ -160,7 +167,7 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int) //managerid
+	userID, ok := r.Context().Value("user_id").(int) //manager id
 	if !ok {
 		http.Error(w, "failed to get user ID from context", http.StatusInternalServerError)
 		return
@@ -185,6 +192,9 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
+	//creating invitation URL
+	inviteURL := fmt.Sprintf("%s/join?token=%s", h.appBaseURL, token)
+
 	invitation := models.InvitationLink{
 		SenderID:         userID,
 		ReceiverUsername: telegramUsername,
@@ -192,22 +202,32 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		Token:            token,
 		ExpiresAt:        time.Now().Add(24 * time.Hour),
 		Status:           models.InvitationStatusPending,
+		InviteURL:        inviteURL,
 	}
 
+	//storing invitation
 	if err := h.inviteLinkRepo.CreateInvitation(r.Context(), invitation); err != nil {
 		http.Error(w, "failed to store invitation", http.StatusInternalServerError)
 		return
 	}
 
+	//sending notification via Telegram
 	if err := h.notificationService.SendInvitation(r.Context(), invitation); err != nil {
 		http.Error(w, "failed to send invitation", http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "invitation sent"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "invitation sent",
+		"token":      token,
+		"invite_url": inviteURL,
+		"expires_at": invitation.ExpiresAt,
+	})
 }
 
+// works purely with token from query params
 func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
@@ -221,13 +241,19 @@ func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	//get invitation by token
 	inv, err := h.inviteLinkRepo.GetInvitationByToken(r.Context(), token)
 	if err != nil {
 		http.Error(w, "invalid or expired token", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.inviteLinkRepo.MarkInvitationUsed(r.Context(), token, 0); err != nil {
+	if inv.Status != models.InvitationStatusPending {
+		http.Error(w, "invitation is no longer valid", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.inviteLinkRepo.MarkInvitationUsed(r.Context(), token); err != nil {
 		http.Error(w, "failed to update invitation status", http.StatusInternalServerError)
 		return
 	}
@@ -243,8 +269,45 @@ func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "joined apartment"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":       "joined apartment",
+		"apartment_id": inv.ApartmentID,
+	})
+}
+
+func (h *ApartmentHandler) RejectInvitation(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "token is required", http.StatusBadRequest)
+		return
+	}
+
+	//getting invitation by token
+	inv, err := h.inviteLinkRepo.GetInvitationByToken(r.Context(), token)
+	if err != nil {
+		http.Error(w, "invalid or expired token", http.StatusBadRequest)
+		return
+	}
+
+	//checking if invitation is still pending
+	if inv.Status != models.InvitationStatusPending {
+		http.Error(w, "invitation is no longer valid", http.StatusBadRequest)
+		return
+	}
+
+	//mark invitation as rejected
+	if err := h.inviteLinkRepo.MarkInvitationRejected(r.Context(), token); err != nil {
+		http.Error(w, "failed to update invitation status", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "invitation rejected",
+	})
 }
 
 func (h *ApartmentHandler) LeaveApartment(w http.ResponseWriter, r *http.Request) {
@@ -267,6 +330,7 @@ func (h *ApartmentHandler) LeaveApartment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "left apartment"})
 }

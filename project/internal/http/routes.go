@@ -15,7 +15,6 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	v1.HandleFunc("/user/signup", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.userHandler.SignUp,
 	}))
-
 	v1.HandleFunc("/user/login", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.userHandler.Login,
 	}))
@@ -27,11 +26,9 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/user/get-all", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.userHandler.GetAllUsers,
 	}))
-
 	managerRoutes.HandleFunc("/user/get", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.userHandler.GetUser,
 	}))
-
 	managerRoutes.HandleFunc("/user/delete", utils.MethodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.userHandler.DeleteUser,
 	}))
@@ -57,6 +54,7 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/{apartment-id}/invite/resident/{telegram-username}", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
+
 	// resident routes
 	residentRoutes := http.NewServeMux()
 	v1.Handle("/resident/", http.StripPrefix("/resident", middleware.JWTAuthMiddleware(models.Resident, models.Manager)(residentRoutes)))
@@ -65,11 +63,15 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 		"GET": s.userHandler.GetProfile,
 		"PUT": s.userHandler.UpdateProfile,
 	}))
-
 	residentRoutes.HandleFunc("/apartment/join", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.JoinApartment,
 	}))
 	residentRoutes.HandleFunc("/apartment/leave", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.LeaveApartment,
+	}))
+
+	//rejection route for invitations (can be accessed by anyone with the token)
+	v1.HandleFunc("/invitation/reject", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.apartmentHandler.RejectInvitation,
 	}))
 }

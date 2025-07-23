@@ -44,7 +44,7 @@ func start(_ *cobra.Command, _ []string) {
 	inviteLinkRepo := repositories.NewInvitationLinkRepository(redisClient)
 	billRepo := repositories.NewBillRepository(cfg.Postgres.AutoCreate, db)
 
-	notificationService := notification.NewNotification(cfg.TelegramConfig)
+	notificationService := notification.NewNotification(cfg.TelegramConfig, cfg.Server.AppBaseURL)
 	imageService := image.NewImage(cfg.Minio.Endpoint, cfg.Minio.AccessKey, cfg.Minio.SecretKey, cfg.Minio.Bucket)
 
 	httpService := http.NewApartmantService(

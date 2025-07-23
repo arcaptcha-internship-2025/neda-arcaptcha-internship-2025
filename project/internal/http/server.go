@@ -52,12 +52,15 @@ func NewApartmantService(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	userHandler := handlers.NewUserHandler(userRepo)
+
 	apartmentHandler := handlers.NewApartmentHandler(
 		apartmentRepo,
 		userApartmentRepo,
 		inviteLinkRepo,
 		notificationService,
+		cfg.Server.AppBaseURL,
 	)
+
 	billHandler := handlers.NewBillHandler(billRepo, imageService)
 
 	return &ApartmantService{
