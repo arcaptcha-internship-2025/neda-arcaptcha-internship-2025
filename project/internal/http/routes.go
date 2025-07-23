@@ -74,4 +74,8 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	v1.HandleFunc("/invitation/reject", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.RejectInvitation,
 	}))
+
+	v1.HandleFunc("/telegram/webhook", utils.MethodHandler(map[string]http.HandlerFunc{
+		"POST": s.handleTelegramWebhook,
+	}))
 }

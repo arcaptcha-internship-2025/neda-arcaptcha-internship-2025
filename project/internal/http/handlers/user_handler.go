@@ -20,19 +20,41 @@ type UserHandler struct {
 }
 
 type CreateUserRequest struct {
-	Username string          `json:"username"`
-	Password string          `json:"password"`
-	Email    string          `json:"email"`
-	Phone    string          `json:"phone"`
-	FullName string          `json:"full_name"`
-	UserType models.UserType `json:"user_type"`
+	Username     string          `json:"username"`
+	Password     string          `json:"password"`
+	Email        string          `json:"email"`
+	Phone        string          `json:"phone"`
+	FullName     string          `json:"full_name"`
+	UserType     models.UserType `json:"user_type"`
+	TelegramUser string          `json:"telegram_user"`
 }
 
 type UpdateProfileRequest struct {
+	Username     string `json:"username"`
+	Email        string `json:"email"`
+	Phone        string `json:"phone"`
+	FullName     string `json:"full_name"`
+	TelegramUser string `json:"telegram_user"`
+}
+
+type LoginRequest struct {
 	Username string `json:"username"`
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
-	FullName string `json:"full_name"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	Token    string       `json:"token"`
+	UserID   string       `json:"user_id"`
+	UserType string       `json:"user_type"`
+	Username string       `json:"username"`
+	Email    string       `json:"email"`
+	FullName string       `json:"full_name"`
+	Telegram TelegramInfo `json:"telegram"`
+}
+
+type TelegramInfo struct {
+	Username  string `json:"username"`
+	Connected bool   `json:"connected"`
 }
 
 func NewUserHandler(userRepo repositories.UserRepository) *UserHandler {
@@ -56,7 +78,7 @@ func (h *UserHandler) getCurrentUserID(r *http.Request) (int, error) {
 }
 
 func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
-	var req CreateUserRequest // instead of models.User
+	var req CreateUserRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -75,6 +97,14 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//validating telegram username format if provided
+	if req.TelegramUser != "" {
+		if !isValidTelegramUsername(req.TelegramUser) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid Telegram username format")
+			return
+		}
+	}
+
 	existingUser, err := h.userRepo.GetUserByUsername(req.Username)
 	if err != nil && err != sql.ErrNoRows {
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to check existing user")
@@ -85,6 +115,19 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//checking if telegram username is already taken
+	if req.TelegramUser != "" {
+		existingTelegramUser, err := h.userRepo.GetUserByTelegramUser(req.TelegramUser)
+		if err != nil && err != sql.ErrNoRows {
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to check Telegram username")
+			return
+		}
+		if existingTelegramUser != nil {
+			utils.WriteErrorResponse(w, http.StatusConflict, "Telegram username already in use")
+			return
+		}
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to hash password")
@@ -92,12 +135,13 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := models.User{
-		Username: req.Username,
-		Password: string(hashedPassword),
-		Email:    req.Email,
-		Phone:    req.Phone,
-		FullName: req.FullName,
-		UserType: req.UserType,
+		Username:     req.Username,
+		Password:     string(hashedPassword),
+		Email:        req.Email,
+		Phone:        req.Phone,
+		FullName:     req.FullName,
+		UserType:     req.UserType,
+		TelegramUser: req.TelegramUser,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -116,19 +160,23 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, "user created successfully", map[string]interface{}{
-		"user":  user,
-		"token": token,
-	})
+	responseData := map[string]interface{}{
+		"user":                    user,
+		"token":                   token,
+		"telegram_setup_required": req.TelegramUser != "",
+	}
+
+	if req.TelegramUser != "" {
+		responseData["telegram_setup_instructions"] = "Please start a chat with our bot in Telegram to complete setup"
+	}
+
+	utils.WriteSuccessResponse(w, "user created successfully", responseData)
 }
 
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-
+	var req LoginRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -160,14 +208,20 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, "login successful", map[string]interface{}{
-		"token":     token,
-		"user_id":   strconv.Itoa(existingUser.ID),
-		"user_type": string(existingUser.UserType),
-		"username":  existingUser.Username,
-		"email":     existingUser.Email,
-		"full_name": existingUser.FullName,
-	})
+	response := LoginResponse{
+		Token:    token,
+		UserID:   strconv.Itoa(existingUser.ID),
+		UserType: string(existingUser.UserType),
+		Username: existingUser.Username,
+		Email:    existingUser.Email,
+		FullName: existingUser.FullName,
+		Telegram: TelegramInfo{
+			Username:  existingUser.TelegramUser,
+			Connected: existingUser.TelegramChatID != 0,
+		},
+	}
+
+	utils.WriteSuccessResponse(w, "login successful", response)
 }
 
 func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +237,20 @@ func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, "profile retrieved successfully", user)
+	profileResponse := map[string]interface{}{
+		"id":        user.ID,
+		"username":  user.Username,
+		"email":     user.Email,
+		"phone":     user.Phone,
+		"full_name": user.FullName,
+		"user_type": user.UserType,
+		"telegram": map[string]interface{}{
+			"username":  user.TelegramUser,
+			"connected": user.TelegramChatID != 0,
+		},
+	}
+
+	utils.WriteSuccessResponse(w, "profile retrieved successfully", profileResponse)
 }
 
 func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
@@ -195,6 +262,7 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	var req UpdateProfileRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -202,6 +270,25 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "user not found")
 		return
+	}
+
+	//checking if Telegram username is being updated and validate it
+	if req.TelegramUser != "" && req.TelegramUser != existingUser.TelegramUser {
+		if !isValidTelegramUsername(req.TelegramUser) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid Telegram username format")
+			return
+		}
+
+		//checking if new Telegram username is already taken
+		existingTelegramUser, err := h.userRepo.GetUserByTelegramUser(req.TelegramUser)
+		if err != nil && err != sql.ErrNoRows {
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to check Telegram username")
+			return
+		}
+		if existingTelegramUser != nil && existingTelegramUser.ID != userID {
+			utils.WriteErrorResponse(w, http.StatusConflict, "Telegram username already in use")
+			return
+		}
 	}
 
 	if req.Username != "" {
@@ -216,6 +303,13 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if req.FullName != "" {
 		existingUser.FullName = req.FullName
 	}
+	if req.TelegramUser != "" {
+		existingUser.TelegramUser = req.TelegramUser
+		//reseting chat id if Telegram username is changed
+		if req.TelegramUser != existingUser.TelegramUser {
+			existingUser.TelegramChatID = 0
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -225,7 +319,20 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, "profile updated successfully", existingUser)
+	updatedProfile := map[string]interface{}{
+		"id":        existingUser.ID,
+		"username":  existingUser.Username,
+		"email":     existingUser.Email,
+		"phone":     existingUser.Phone,
+		"full_name": existingUser.FullName,
+		"user_type": existingUser.UserType,
+		"telegram": map[string]interface{}{
+			"username":  existingUser.TelegramUser,
+			"connected": existingUser.TelegramChatID != 0,
+		},
+	}
+
+	utils.WriteSuccessResponse(w, "profile updated successfully", updatedProfile)
 }
 
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +348,13 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, "user retrieved successfully", user)
+	publicUser := map[string]interface{}{
+		"id":        user.ID,
+		"username":  user.Username,
+		"full_name": user.FullName,
+	}
+
+	utils.WriteSuccessResponse(w, "user retrieved successfully", publicUser)
 }
 
 func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
@@ -251,7 +364,17 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, "users retrieved successfully", users)
+	publicUsers := make([]map[string]interface{}, len(users))
+	for i, user := range users {
+		publicUsers[i] = map[string]interface{}{
+			"id":        user.ID,
+			"username":  user.Username,
+			"full_name": user.FullName,
+			"user_type": user.UserType,
+		}
+	}
+
+	utils.WriteSuccessResponse(w, "users retrieved successfully", publicUsers)
 }
 
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -262,7 +385,6 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.userRepo.DeleteUser(userID); err != nil {
-		// Check if the error is because the user doesn't exist
 		if err == sql.ErrNoRows {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "user not found")
 			return
@@ -272,4 +394,19 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteSuccessResponse(w, "user deleted successfully", nil)
+}
+
+func isValidTelegramUsername(username string) bool {
+	if len(username) < 5 || len(username) > 32 {
+		return false
+	}
+
+	//telegram usernames can only contain a-z, 0-9, and underscores
+	for _, c := range username {
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+			return false
+		}
+	}
+
+	return true
 }

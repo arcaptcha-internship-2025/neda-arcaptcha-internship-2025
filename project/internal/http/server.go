@@ -2,10 +2,12 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -164,4 +166,36 @@ func ChainMiddleware(h http.Handler, middleware ...func(http.Handler) http.Handl
 		h = mw(h)
 	}
 	return h
+}
+
+func (s *ApartmantService) handleTelegramWebhook(w http.ResponseWriter, r *http.Request) {
+	var update struct {
+		UpdateID int `json:"update_id"`
+		Message  struct {
+			Chat struct {
+				ID       int64  `json:"id"`
+				Username string `json:"username"`
+			} `json:"chat"`
+			Text string `json:"text"`
+		} `json:"message"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Handle /start command
+	if strings.HasPrefix(update.Message.Text, "/start") {
+		if err := s.notificationService.HandleStartCommand(
+			r.Context(),
+			update.Message.Chat.Username,
+			update.Message.Chat.ID,
+		); err != nil {
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to handle start command")
+			return
+		}
+	}
+
+	utils.WriteSuccessResponse(w, "webhook processed", nil)
 }
