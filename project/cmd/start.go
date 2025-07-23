@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"strconv"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/app"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http"
+	myhttp "github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/image"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
@@ -53,10 +54,15 @@ func start(_ *cobra.Command, _ []string) {
 	inviteLinkRepo := repositories.NewInvitationLinkRepository(redisClient)
 	billRepo := repositories.NewBillRepository(cfg.Postgres.AutoCreate, db)
 
-	notificationService := notification.NewNotification(cfg.TelegramConfig, cfg.Server.AppBaseURL)
+	notificationService := notification.NewNotification(
+		cfg.TelegramConfig,
+		cfg.Server.AppBaseURL,
+		userRepo,
+	)
+
 	imageService := image.NewImage(cfg.Minio.Endpoint, cfg.Minio.AccessKey, cfg.Minio.SecretKey, cfg.Minio.Bucket)
 
-	httpService := http.NewApartmantService(
+	httpService := myhttp.NewApartmantService(
 		cfg,
 		db,
 		minioClient,

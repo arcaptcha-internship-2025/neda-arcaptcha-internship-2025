@@ -25,17 +25,18 @@ import (
 )
 
 type ApartmantService struct {
-	server           *http.Server
-	cfg              *config.Config
-	shutdownWG       sync.WaitGroup
-	shutdownCtx      context.Context
-	cancelFunc       context.CancelFunc
-	db               *sqlx.DB
-	minioClient      *minio.Client
-	redisClient      *goredis.Client
-	userHandler      *handlers.UserHandler
-	apartmentHandler *handlers.ApartmentHandler
-	billHandler      *handlers.BillHandler
+	server              *http.Server
+	cfg                 *config.Config
+	shutdownWG          sync.WaitGroup
+	shutdownCtx         context.Context
+	cancelFunc          context.CancelFunc
+	db                  *sqlx.DB
+	minioClient         *minio.Client
+	redisClient         *goredis.Client
+	userHandler         *handlers.UserHandler
+	apartmentHandler    *handlers.ApartmentHandler
+	billHandler         *handlers.BillHandler
+	notificationService notification.Notification
 }
 
 func NewApartmantService(
@@ -57,6 +58,7 @@ func NewApartmantService(
 
 	apartmentHandler := handlers.NewApartmentHandler(
 		apartmentRepo,
+		userRepo,
 		userApartmentRepo,
 		inviteLinkRepo,
 		notificationService,
@@ -66,15 +68,16 @@ func NewApartmantService(
 	billHandler := handlers.NewBillHandler(billRepo, imageService)
 
 	return &ApartmantService{
-		cfg:              cfg,
-		shutdownCtx:      ctx,
-		cancelFunc:       cancel,
-		db:               db,
-		minioClient:      minioClient,
-		redisClient:      redisClient,
-		userHandler:      userHandler,
-		apartmentHandler: apartmentHandler,
-		billHandler:      billHandler,
+		cfg:                 cfg,
+		shutdownCtx:         ctx,
+		cancelFunc:          cancel,
+		db:                  db,
+		minioClient:         minioClient,
+		redisClient:         redisClient,
+		userHandler:         userHandler,
+		apartmentHandler:    apartmentHandler,
+		billHandler:         billHandler,
+		notificationService: notificationService,
 	}
 }
 
