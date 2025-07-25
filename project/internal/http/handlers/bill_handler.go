@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -74,7 +75,22 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//parse form data (for file upload)
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
+		return
+	}
+
+	isManager, err := h.userApartmentRepo.IsUserManagerOfApartment(r.Context(), userID, apartmentID)
+	if err != nil {
+		http.Error(w, "Failed to verify manager status", http.StatusInternalServerError)
+		return
+	}
+	if !isManager {
+		http.Error(w, "Only apartment managers can create bills", http.StatusForbidden)
+		return
+	}
+
 	err = r.ParseMultipartForm(10 << 20) // 10 MB max
 	if err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
@@ -93,7 +109,7 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//actual residents count instead of using units count
+	//get the actual residents in that apartment count
 	residents, err := h.userApartmentRepo.GetResidentsInApartment(apartmentID)
 	if err != nil {
 		http.Error(w, "Failed to get residents", http.StatusInternalServerError)
@@ -141,7 +157,8 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//payment records for each resident
+	bill.ID = billID
+
 	for _, resident := range residents {
 		payment := models.Payment{
 			BillID:        billID,
@@ -151,20 +168,14 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err := h.paymentRepo.CreatePayment(r.Context(), payment)
 		if err != nil {
-			http.Error(w, "Failed to create payment record", http.StatusInternalServerError)
+			http.Error(w, "failed to create payment record", http.StatusInternalServerError)
 			return
 		}
 
-		//send notification to resident
-		message := fmt.Sprintf(
-			"New bill created:\nType: %s\nAmount: %.2f\nDue Date: %s\nDescription: %s",
-			bill.BillType, amountPerResident, bill.DueDate, bill.Description,
-		)
-		if bill.ImageURL != "" {
-			message += "\nBill image available in your dashboard"
+		//send notif using the new method
+		if err := h.notificationService.SendBillNotification(r.Context(), resident.ID, bill, amountPerResident); err != nil {
+			log.Printf("failed to send notification to user %d: %v", resident.ID, err)
 		}
-
-		_ = h.notificationService.SendNotification(r.Context(), resident.ID, message)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

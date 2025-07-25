@@ -23,6 +23,7 @@ type Notification interface {
 	SendInvitation(ctx context.Context, inv models.InvitationLink) error
 	HandleStartCommand(ctx context.Context, telegramUser string, chatID int64) error
 	HandleWebhookUpdate(ctx context.Context, update Update) error
+	SendBillNotification(ctx context.Context, userID int, bill models.Bill, amount float64) error
 }
 
 type notificationImpl struct {
@@ -168,4 +169,29 @@ func (n *notificationImpl) SendInvitation(ctx context.Context, inv models.Invita
 	)
 
 	return n.sendMessage(ctx, receiver.TelegramChatID, message)
+}
+
+func (n *notificationImpl) SendBillNotification(ctx context.Context, userID int, bill models.Bill, amount float64) error {
+	user, err := n.userRepo.GetUserByID(userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if user.TelegramChatID == 0 {
+		return fmt.Errorf("user hasn't started the bot yet")
+	}
+
+	message := fmt.Sprintf(
+		" *New Bill Notification*\n\n"+
+			"Type: %s\n"+
+			"Your Share: %.2f\n"+
+			"Due Date: %s\n"+
+			"Description: %s\n\n",
+		bill.BillType, amount, bill.DueDate, bill.Description)
+
+	if bill.ImageURL != "" {
+		message += "Bill image is available in your dashboard"
+	}
+
+	return n.sendMessage(ctx, user.TelegramChatID, message)
 }
