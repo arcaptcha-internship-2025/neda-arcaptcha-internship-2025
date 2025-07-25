@@ -29,6 +29,7 @@ type BillRepository interface {
 	GetBillsByApartmentID(apartmentID int) ([]models.Bill, error)
 	UpdateBill(ctx context.Context, bill models.Bill) error
 	DeleteBill(id int)
+	GetPaymentByBillAndUser(billID, userID int) (*models.Payment, error)
 }
 type billRepositoryImpl struct {
 	db *sqlx.DB
@@ -97,4 +98,15 @@ func (r *billRepositoryImpl) DeleteBill(id int) {
 		// for now, we just ignore the error
 		return
 	}
+}
+
+func (r *billRepositoryImpl) GetPaymentByBillAndUser(billID, userID int) (*models.Payment, error) {
+	var payment models.Payment
+	query := `SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at 
+              FROM payments WHERE bill_id = $1 AND user_id = $2`
+	err := r.db.Get(&payment, query, billID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &payment, nil
 }

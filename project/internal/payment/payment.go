@@ -1,8 +1,8 @@
 package payment
 
-import "fmt"
-
-//interface method:paybills-> slice of bills ->loop on slice->does nothing(mock)->update bill id in payment repo stutus to done
+import (
+	"log"
+)
 
 type Payment interface {
 	PayBills(billIDs []int) error
@@ -16,9 +16,10 @@ func NewPayment() Payment {
 }
 
 func (p *paymentImpl) PayBills(billIDs []int) error {
+	//mock payment processing
 	for _, billID := range billIDs {
-		// for demonstration, we will just print the bill ID
-		fmt.Printf("Paying bill with ID: %d\n", billID)
+		log.Printf("Processing mock payment for bill ID: %d", billID)
 	}
-	return nil // so the payment was successful
+
+	return nil
 }
