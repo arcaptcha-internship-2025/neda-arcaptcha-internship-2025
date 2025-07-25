@@ -20,6 +20,7 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/utils"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/image"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/payment"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -37,6 +38,8 @@ type ApartmantService struct {
 	apartmentHandler    *handlers.ApartmentHandler
 	billHandler         *handlers.BillHandler
 	notificationService notification.Notification
+	imageService        image.Image
+	paymentService      payment.Payment
 }
 
 func NewApartmantService(
@@ -51,6 +54,8 @@ func NewApartmantService(
 	notificationService notification.Notification,
 	billRepo repositories.BillRepository,
 	imageService image.Image,
+	paymentRepo repositories.PaymentRepository,
+	paymentService payment.Payment,
 ) *ApartmantService {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -65,7 +70,16 @@ func NewApartmantService(
 		cfg.Server.AppBaseURL,
 	)
 
-	billHandler := handlers.NewBillHandler(billRepo, imageService)
+	billHandler := handlers.NewBillHandler(
+		billRepo,
+		userRepo,
+		apartmentRepo,
+		userApartmentRepo,
+		paymentRepo,
+		imageService,
+		paymentService,
+		notificationService,
+	)
 
 	return &ApartmantService{
 		cfg:                 cfg,
@@ -78,6 +92,8 @@ func NewApartmantService(
 		apartmentHandler:    apartmentHandler,
 		billHandler:         billHandler,
 		notificationService: notificationService,
+		imageService:        imageService,
+		paymentService:      paymentService,
 	}
 }
 

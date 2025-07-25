@@ -13,6 +13,7 @@ import (
 	myhttp "github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/image"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/payment"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
 	"github.com/spf13/cobra"
 )
@@ -53,6 +54,7 @@ func start(_ *cobra.Command, _ []string) {
 	userApartmentRepo := repositories.NewUserApartmentRepository(cfg.Postgres.AutoCreate, db)
 	inviteLinkRepo := repositories.NewInvitationLinkRepository(redisClient)
 	billRepo := repositories.NewBillRepository(cfg.Postgres.AutoCreate, db)
+	paymentRepo := repositories.NewPaymentRepository(cfg.Postgres.AutoCreate, db)
 
 	notificationService := notification.NewNotification(
 		cfg.TelegramConfig,
@@ -61,7 +63,7 @@ func start(_ *cobra.Command, _ []string) {
 	)
 
 	imageService := image.NewImage(cfg.Minio.Endpoint, cfg.Minio.AccessKey, cfg.Minio.SecretKey, cfg.Minio.Bucket)
-
+	paymentService := payment.NewPayment()
 	httpService := myhttp.NewApartmantService(
 		cfg,
 		db,
@@ -74,6 +76,8 @@ func start(_ *cobra.Command, _ []string) {
 		notificationService,
 		billRepo,
 		imageService,
+		paymentRepo,
+		paymentService,
 	)
 
 	if err := httpService.Start("Apartment Service"); err != nil {

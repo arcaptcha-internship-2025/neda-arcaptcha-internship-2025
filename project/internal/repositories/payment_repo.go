@@ -15,7 +15,7 @@ const (
 		user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
 		amount DECIMAL(12, 2) NOT NULL,
 		paid_at TIMESTAMP WITH TIME ZONE,
-		payment_status VARCHAR(255),
+		payment_status VARCHAR(50) NOT NULL,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);`
@@ -24,8 +24,11 @@ const (
 type PaymentRepository interface {
 	CreatePayment(ctx context.Context, payment models.Payment) (int, error)
 	GetPaymentByID(id int) (*models.Payment, error)
-	UpdatePayment(id int, payment models.Payment) error
-	UpdatePaymentsStatus(ctx context.Context, payments []models.Payment)
+	GetPaymentByBillAndUser(billID, userID int) (*models.Payment, error)
+	GetPaymentsByUser(userID int) ([]models.Payment, error)
+	GetPaymentsByBill(billID int) ([]models.Payment, error)
+	UpdatePaymentStatus(ctx context.Context, payment models.Payment) error
+	UpdatePaymentsStatus(ctx context.Context, payments []models.Payment) error
 	DeletePayment(id int) error
 }
 
@@ -64,44 +67,80 @@ func (r *paymentRepositoryImpl) GetPaymentByID(id int) (*models.Payment, error) 
 	return &payment, nil
 }
 
-func (r *paymentRepositoryImpl) UpdatePayment(id int, payment models.Payment) error {
-	query := `UPDATE payments 
-			  SET bill_id = :bill_id, user_id = :user_id, amount = :amount, 
-			      paid_at = :paid_at, payment_status = :payment_status, 
-			      updated_at = CURRENT_TIMESTAMP 
-			  WHERE id = :id`
-	payment.ID = id // Set the ID for the update query
-	_, err := r.db.NamedExecContext(context.Background(), query, payment)
+func (r *paymentRepositoryImpl) GetPaymentByBillAndUser(billID, userID int) (*models.Payment, error) {
+	var payment models.Payment
+	query := `SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at 
+			  FROM payments WHERE bill_id = $1 AND user_id = $2`
+	err := r.db.Get(&payment, query, billID, userID)
 	if err != nil {
-		log.Printf("error updating payment with ID %d: %v", id, err)
+		return nil, err
 	}
+	return &payment, nil
+}
+
+func (r *paymentRepositoryImpl) GetPaymentsByUser(userID int) ([]models.Payment, error) {
+	var payments []models.Payment
+	query := `SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at 
+			  FROM payments WHERE user_id = $1`
+	err := r.db.Select(&payments, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	return payments, nil
+}
+
+func (r *paymentRepositoryImpl) GetPaymentsByBill(billID int) ([]models.Payment, error) {
+	var payments []models.Payment
+	query := `SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at 
+			  FROM payments WHERE bill_id = $1`
+	err := r.db.Select(&payments, query, billID)
+	if err != nil {
+		return nil, err
+	}
+	return payments, nil
+}
+
+func (r *paymentRepositoryImpl) UpdatePaymentStatus(ctx context.Context, payment models.Payment) error {
+	query := `UPDATE payments SET 
+			  payment_status = :payment_status,
+			  paid_at = :paid_at,
+			  updated_at = CURRENT_TIMESTAMP
+			  WHERE id = :id`
+	_, err := r.db.NamedExecContext(ctx, query, payment)
 	return err
 }
 
-func (r *paymentRepositoryImpl) UpdatePaymentsStatus(ctx context.Context, payments []models.Payment) {
-	query := `UPDATE payments SET payment_status = :payment_status, updated_at = CURRENT_TIMESTAMP 
-			  WHERE id = :id`
-	for _, payment := range payments {
-		_, err := r.db.NamedExecContext(ctx, query, payment)
+func (r *paymentRepositoryImpl) UpdatePaymentsStatus(ctx context.Context, payments []models.Payment) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
 		if err != nil {
-			log.Printf("error updating payment status for ID %d: %v", payment.ID, err)
-			continue
-			// log the error and continue processing other payments
-			// we might want to handle the error differently based on your requirements
-			// foeexample we could return the error or retry the operation
-			// now we just log the error and continue with the next payment
-			// this way if one payment fails, it won't stop the processing of others.
-			// we can also choose to return the error if you want to stop processing on the first error.
-			// return err
+			tx.Rollback()
+			return
+		}
+		err = tx.Commit()
+	}()
+
+	query := `UPDATE payments SET 
+			  payment_status = :payment_status,
+			  paid_at = :paid_at,
+			  updated_at = CURRENT_TIMESTAMP
+			  WHERE id = :id`
+
+	for _, payment := range payments {
+		_, err = tx.NamedExecContext(ctx, query, payment)
+		if err != nil {
+			return err
 		}
 	}
+
+	return nil
 }
 
 func (r *paymentRepositoryImpl) DeletePayment(id int) error {
 	query := `DELETE FROM payments WHERE id = $1`
 	_, err := r.db.Exec(query, id)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
