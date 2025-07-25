@@ -48,28 +48,27 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/delete", s.methodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.apartmentHandler.DeleteApartment,
 	}))
-	managerRoutes.HandleFunc("/apartments/{apartment-id}/residents", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/{apartment-id}/residents", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetResidentsInApartment,
 	}))
 	managerRoutes.HandleFunc("/apartment/{apartment-id}/invite/resident/{telegram-username}", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
-	managerRoutes.HandleFunc("/bill/create", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/bill/{apartment-id}/create", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.billHandler.CreateBill,
 	}))
-	managerRoutes.HandleFunc("/bill/get", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/bill/get", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.billHandler.GetBillByID,
 	}))
-	managerRoutes.HandleFunc("/bills/get-all", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/bills/get-all", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.billHandler.GetBillsByApartment,
 	}))
-	managerRoutes.HandleFunc("/bill/update", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/bill/update", utils.MethodHandler(map[string]http.HandlerFunc{
 		"PUT": s.billHandler.UpdateBill,
 	}))
-	managerRoutes.HandleFunc("/bill/delete", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/bill/delete", utils.MethodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.billHandler.DeleteBill,
 	}))
-
 	// resident routes
 	residentRoutes := http.NewServeMux()
 	v1.Handle("/resident/", http.StripPrefix("/resident", middleware.JWTAuthMiddleware(models.Resident, models.Manager)(residentRoutes)))
@@ -84,13 +83,21 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	residentRoutes.HandleFunc("/apartment/leave", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.LeaveApartment,
 	}))
-	residentRoutes.HandleFunc("/bills/pay", s.methodHandler(map[string]http.HandlerFunc{
+	residentRoutes.HandleFunc("/bills/pay", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.billHandler.PayBills,
 	}))
-	residentRoutes.HandleFunc("/bills/unpaids", s.methodHandler(map[string]http.HandlerFunc{
+	residentRoutes.HandleFunc("/bills/pay-batch", utils.MethodHandler(map[string]http.HandlerFunc{
+		"POST": s.billHandler.PayBatchBills,
+	}))
+	residentRoutes.HandleFunc("/bills/get-unpaid", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.billHandler.GetUnpaidBills,
 	}))
-
+	residentRoutes.HandleFunc("/bill/status", utils.MethodHandler(map[string]http.HandlerFunc{
+		"GET": s.billHandler.GetBillWithPaymentStatus,
+	}))
+	residentRoutes.HandleFunc("/bills/payment-history", utils.MethodHandler(map[string]http.HandlerFunc{
+		"GET": s.billHandler.GetUserPaymentHistory,
+	}))
 	//rejection route for invitations (can be accessed by anyone with the token)
 	v1.HandleFunc("/invitation/reject", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.RejectInvitation,

@@ -49,7 +49,6 @@ func NewBillHandler(
 }
 
 type CreateBillRequest struct {
-	ApartmentID     int             `json:"apartment_id"`
 	BillType        models.BillType `json:"bill_type"`
 	TotalAmount     float64         `json:"total_amount"`
 	DueDate         string          `json:"due_date"`
@@ -61,29 +60,53 @@ type PayBillsRequest struct {
 	BillIDs []int `json:"bill_ids"`
 }
 
+type BatchPaymentRequest struct {
+	UserID  int     `json:"user_id"`
+	BillIDs []int   `json:"bill_ids"`
+	Amount  float64 `json:"total_amount"`
+}
+
 func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
+	apartmentIDStr := r.PathValue("apartment-id")
+	apartmentID, err := strconv.Atoi(apartmentIDStr)
+	if err != nil {
+		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
+		return
+	}
+
 	//parse form data (for file upload)
-	err := r.ParseMultipartForm(10 << 20) // 10 MB max
+	err = r.ParseMultipartForm(10 << 20) // 10 MB max
 	if err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
 	var req CreateBillRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	req.BillType = models.BillType(r.FormValue("bill_type"))
+	req.TotalAmount, _ = strconv.ParseFloat(r.FormValue("total_amount"), 64)
+	req.DueDate = r.FormValue("due_date")
+	req.BillingDeadline = r.FormValue("billing_deadline")
+	req.Description = r.FormValue("description")
+
+	if req.BillType == "" || req.TotalAmount <= 0 || req.DueDate == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
 
-	apartment, err := h.apartmentRepo.GetApartmentByID(req.ApartmentID)
+	//actual residents count instead of using units count
+	residents, err := h.userApartmentRepo.GetResidentsInApartment(apartmentID)
 	if err != nil {
-		http.Error(w, "Apartment not found", http.StatusNotFound)
+		http.Error(w, "Failed to get residents", http.StatusInternalServerError)
 		return
 	}
 
-	amountPerUnit := req.TotalAmount / float64(apartment.UnitsCount)
+	if len(residents) == 0 {
+		http.Error(w, "No residents found in apartment", http.StatusBadRequest)
+		return
+	}
 
-	//handling file upload if exists
+	amountPerResident := req.TotalAmount / float64(len(residents))
+
 	var imageURL string
 	file, handler, err := r.FormFile("bill_image")
 	if err == nil {
@@ -103,7 +126,7 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bill := models.Bill{
-		ApartmentID:     req.ApartmentID,
+		ApartmentID:     apartmentID,
 		BillType:        req.BillType,
 		TotalAmount:     req.TotalAmount,
 		DueDate:         req.DueDate,
@@ -118,17 +141,12 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	residents, err := h.userApartmentRepo.GetResidentsInApartment(req.ApartmentID)
-	if err != nil {
-		http.Error(w, "Failed to get residents", http.StatusInternalServerError)
-		return
-	}
-
+	//payment records for each resident
 	for _, resident := range residents {
 		payment := models.Payment{
 			BillID:        billID,
 			UserID:        resident.ID,
-			Amount:        fmt.Sprintf("%.2f", amountPerUnit),
+			Amount:        fmt.Sprintf("%.2f", amountPerResident),
 			PaymentStatus: models.Pending,
 		}
 		_, err := h.paymentRepo.CreatePayment(r.Context(), payment)
@@ -137,10 +155,10 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//sending notification to resident
+		//send notification to resident
 		message := fmt.Sprintf(
 			"New bill created:\nType: %s\nAmount: %.2f\nDue Date: %s\nDescription: %s",
-			bill.BillType, amountPerUnit, bill.DueDate, bill.Description,
+			bill.BillType, amountPerResident, bill.DueDate, bill.Description,
 		)
 		if bill.ImageURL != "" {
 			message += "\nBill image available in your dashboard"
@@ -150,7 +168,11 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"id": billID})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":                billID,
+		"residents_count":   len(residents),
+		"amount_per_person": amountPerResident,
+	})
 }
 
 func (h *BillHandler) GetBillByID(w http.ResponseWriter, r *http.Request) {
@@ -235,7 +257,6 @@ func (h *BillHandler) PayBills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//updating payment statuses
 	var payments []models.Payment
 	for _, billID := range req.BillIDs {
 		payments = append(payments, models.Payment{
@@ -250,6 +271,67 @@ func (h *BillHandler) PayBills(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "payment successful"})
+}
+
+func (h *BillHandler) PayBatchBills(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
+		return
+	}
+
+	var req BatchPaymentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	//validating that all bills belong to user and are unpaid
+	var totalAmount float64
+	var validBills []int
+
+	for _, billID := range req.BillIDs {
+		payment, err := h.paymentRepo.GetPaymentByBillAndUser(billID, userID)
+		if err != nil {
+			continue //invalid bills
+		}
+
+		if payment.PaymentStatus == models.Pending {
+			amount, _ := strconv.ParseFloat(payment.Amount, 64)
+			totalAmount += amount
+			validBills = append(validBills, billID)
+		}
+	}
+
+	if len(validBills) == 0 {
+		http.Error(w, "No valid unpaid bills found", http.StatusBadRequest)
+		return
+	}
+
+	//batch payment
+	if err := h.paymentService.PayBills(validBills); err != nil {
+		http.Error(w, "Batch payment failed", http.StatusInternalServerError)
+		return
+	}
+
+	var payments []models.Payment
+	for _, billID := range validBills {
+		payments = append(payments, models.Payment{
+			BillID:        billID,
+			UserID:        userID,
+			PaidAt:        time.Now(),
+			PaymentStatus: models.Paid,
+		})
+	}
+
+	h.paymentRepo.UpdatePaymentsStatus(r.Context(), payments)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":       "batch payment successful",
+		"bills_paid":   len(validBills),
+		"total_amount": totalAmount,
+	})
 }
 
 func (h *BillHandler) GetUnpaidBills(w http.ResponseWriter, r *http.Request) {
@@ -283,4 +365,85 @@ func (h *BillHandler) GetUnpaidBills(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(unpaidBills)
+}
+
+func (h *BillHandler) GetBillWithPaymentStatus(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
+		return
+	}
+
+	billIDStr := r.URL.Query().Get("bill_id")
+	billID, err := strconv.Atoi(billIDStr)
+	if err != nil {
+		http.Error(w, "Invalid bill ID", http.StatusBadRequest)
+		return
+	}
+
+	bill, err := h.repo.GetBillByID(billID)
+	if err != nil {
+		http.Error(w, "Bill not found", http.StatusNotFound)
+		return
+	}
+
+	payment, err := h.paymentRepo.GetPaymentByBillAndUser(billID, userID)
+	if err != nil {
+		http.Error(w, "Payment record not found", http.StatusNotFound)
+		return
+	}
+
+	response := map[string]interface{}{
+		"bill":           bill,
+		"payment_status": payment.PaymentStatus,
+		"amount_due":     payment.Amount,
+		"paid_at":        payment.PaidAt,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *BillHandler) GetUserPaymentHistory(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int)
+	if !ok {
+		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
+		return
+	}
+
+	// Get all apartments for user
+	apartments, err := h.userApartmentRepo.GetAllApartmentsForAResident(userID)
+	if err != nil {
+		http.Error(w, "Failed to get apartments", http.StatusInternalServerError)
+		return
+	}
+
+	type PaymentHistoryItem struct {
+		Bill          models.Bill    `json:"bill"`
+		Payment       models.Payment `json:"payment"`
+		ApartmentName string         `json:"apartment_name"`
+	}
+
+	var history []PaymentHistoryItem
+
+	for _, apartment := range apartments {
+		bills, err := h.repo.GetBillsByApartmentID(apartment.ID)
+		if err != nil {
+			continue
+		}
+
+		for _, bill := range bills {
+			payment, err := h.paymentRepo.GetPaymentByBillAndUser(bill.ID, userID)
+			if err == nil {
+				history = append(history, PaymentHistoryItem{
+					Bill:          bill,
+					Payment:       *payment,
+					ApartmentName: apartment.ApartmentName,
+				})
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(history)
 }
