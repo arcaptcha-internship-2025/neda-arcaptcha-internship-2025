@@ -54,6 +54,21 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/{apartment-id}/invite/resident/{telegram-username}", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
+	managerRoutes.HandleFunc("/bill/create", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.billHandler.CreateBill,
+	}))
+	managerRoutes.HandleFunc("/bill/get", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.billHandler.GetBillByID,
+	}))
+	managerRoutes.HandleFunc("/bills/get-all", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.billHandler.GetBillsByApartment,
+	}))
+	managerRoutes.HandleFunc("/bill/update", s.methodHandler(map[string]http.HandlerFunc{
+		"PUT": s.billHandler.UpdateBill,
+	}))
+	managerRoutes.HandleFunc("/bill/delete", s.methodHandler(map[string]http.HandlerFunc{
+		"DELETE": s.billHandler.DeleteBill,
+	}))
 
 	// resident routes
 	residentRoutes := http.NewServeMux()
@@ -69,6 +84,12 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	residentRoutes.HandleFunc("/apartment/leave", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.LeaveApartment,
 	}))
+	residentRoutes.HandleFunc("/bills/pay", s.methodHandler(map[string]http.HandlerFunc{
+		"POST": s.billHandler.PayBills,
+	}))
+	residentRoutes.HandleFunc("/bills/unpaids", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.billHandler.GetUnpaidBills,
+	}))
 
 	//rejection route for invitations (can be accessed by anyone with the token)
 	v1.HandleFunc("/invitation/reject", s.methodHandler(map[string]http.HandlerFunc{
@@ -78,4 +99,5 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	v1.HandleFunc("/telegram/webhook", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.handleTelegramWebhook,
 	}))
+
 }
