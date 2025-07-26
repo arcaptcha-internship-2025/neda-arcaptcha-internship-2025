@@ -47,10 +47,15 @@ func NewPaymentRepository(autoCreate bool, db *sqlx.DB) PaymentRepository {
 
 func (r *paymentRepositoryImpl) CreatePayment(ctx context.Context, payment models.Payment) (int, error) {
 	query := `INSERT INTO payments (bill_id, user_id, amount, paid_at, payment_status) 
-			  VALUES (:bill_id, :user_id, :amount, :paid_at, :payment_status) 
+			  VALUES ($1, $2, $3, $4, $5) 
 			  RETURNING id`
 	var id int
-	if err := r.db.QueryRowxContext(ctx, query, payment).Scan(&id); err != nil {
+	if err := r.db.QueryRowContext(ctx, query,
+		payment.BillID,
+		payment.UserID,
+		payment.Amount,
+		payment.PaidAt,
+		payment.PaymentStatus).Scan(&id); err != nil {
 		return 0, err
 	}
 	return id, nil

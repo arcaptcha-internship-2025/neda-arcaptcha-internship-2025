@@ -94,8 +94,6 @@ func (r *billRepositoryImpl) DeleteBill(id int) {
 	query := `DELETE FROM bills WHERE id = $1`
 	_, err := r.db.Exec(query, id)
 	if err != nil {
-		// handle error if needed, e.g., log it
-		// for now, we just ignore the error
 		return
 	}
 }
