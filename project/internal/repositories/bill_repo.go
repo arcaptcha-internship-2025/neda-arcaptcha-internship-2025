@@ -45,11 +45,18 @@ func NewBillRepository(autoCreate bool, db *sqlx.DB) BillRepository {
 }
 
 func (r *billRepositoryImpl) CreateBill(ctx context.Context, bill models.Bill) (int, error) {
-	query := `INSERT INTO bills (apartment_id, bill_type, total_amount, due_date, billing_deadline, description, image_url) 
-			  VALUES (:apartment_id, :bill_type, :total_amount, :due_date, :billing_deadline, :description, :image_url) 
-			  RETURNING id`
+	query := `INSERT INTO bills (apartment_id, bill_type, total_amount, due_date, billing_deadline, description, image_url)
+ 				VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
 	var id int
-	if err := r.db.QueryRowxContext(ctx, query, bill).Scan(&id); err != nil {
+	err := r.db.QueryRowContext(ctx, query,
+		bill.ApartmentID,
+		bill.BillType,
+		bill.TotalAmount,
+		bill.DueDate,
+		bill.BillingDeadline,
+		bill.Description,
+		bill.ImageURL).Scan(&id)
+	if err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -78,16 +85,21 @@ func (r *billRepositoryImpl) GetBillsByApartmentID(apartmentID int) ([]models.Bi
 }
 
 func (r *billRepositoryImpl) UpdateBill(ctx context.Context, bill models.Bill) error {
-	query := `UPDATE bills 
-			  SET apartment_id = :apartment_id, bill_type = :bill_type, total_amount = :total_amount, 
-			      due_date = :due_date, billing_deadline = :billing_deadline, description = :description, 
-			      image_url = :image_url, updated_at = CURRENT_TIMESTAMP 
-			  WHERE id = :id`
-	_, err := r.db.NamedExecContext(ctx, query, bill)
-	if err != nil {
-		return err
-	}
-	return nil
+	query := `UPDATE bills
+				SET apartment_id = $1, bill_type = $2, total_amount = $3,
+				due_date = $4, billing_deadline = $5, description = $6,
+				image_url = $7, updated_at = CURRENT_TIMESTAMP
+				WHERE id = $8`
+	_, err := r.db.ExecContext(ctx, query,
+		bill.ApartmentID,
+		bill.BillType,
+		bill.TotalAmount,
+		bill.DueDate,
+		bill.BillingDeadline,
+		bill.Description,
+		bill.ImageURL,
+		bill.ID)
+	return err
 }
 
 func (r *billRepositoryImpl) DeleteBill(id int) {

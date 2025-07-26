@@ -172,7 +172,7 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//send notif using the new method
+		//send notif
 		if err := h.notificationService.SendBillNotification(r.Context(), resident.ID, bill, amountPerResident); err != nil {
 			log.Printf("failed to send notification to user %d: %v", resident.ID, err)
 		}
@@ -422,7 +422,6 @@ func (h *BillHandler) GetUserPaymentHistory(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Get all apartments for user
 	apartments, err := h.userApartmentRepo.GetAllApartmentsForAResident(userID)
 	if err != nil {
 		http.Error(w, "Failed to get apartments", http.StatusInternalServerError)
