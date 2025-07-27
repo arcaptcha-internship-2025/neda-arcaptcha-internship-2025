@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -106,10 +107,13 @@ func (r *userApartmentRepositoryImpl) IsUserManagerOfApartment(ctx context.Conte
 	query := `SELECT is_manager FROM user_apartments 
 			  WHERE user_id = $1 AND apartment_id = $2`
 	err := r.db.GetContext(ctx, &isManager, query, userID, apartmentID)
-	if err != nil {
+	if err != nil || !isManager {
+		if !isManager {
+			return false, errors.New("not manager")
+		}
 		return false, err
 	}
-	return isManager, nil
+	return true, nil
 }
 
 func (r *userApartmentRepositoryImpl) IsUserInApartment(ctx context.Context, userID, apartmentID int) (bool, error) {
@@ -119,8 +123,11 @@ func (r *userApartmentRepositoryImpl) IsUserInApartment(ctx context.Context, use
 		WHERE user_id = $1 AND apartment_id = $2
 	)`
 	err := r.db.GetContext(ctx, &exists, query, userID, apartmentID)
-	if err != nil {
+	if err != nil || !exists {
+		if !exists {
+			return false, errors.New("not in apartment")
+		}
 		return false, err
 	}
-	return exists, nil
+	return true, nil
 }

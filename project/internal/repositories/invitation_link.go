@@ -15,12 +15,6 @@ import (
 type InviteLinkFlagRepo interface {
 	CreateInvitation(ctx context.Context, inv models.InvitationLink) error
 	GetInvitationByToken(ctx context.Context, token string) (*models.InvitationLink, error)
-	MarkInvitationUsed(ctx context.Context, token string) error
-	MarkInvitationRejected(ctx context.Context, token string) error
-	MarkInvitationNotified(ctx context.Context, token string) error
-	GetPendingInvitations(ctx context.Context) ([]*models.InvitationLink, error)
-	GetInvitationsByUser(ctx context.Context, username string) ([]*models.InvitationLink, error)
-	GetInvitationsByApartment(ctx context.Context, apartmentID int) ([]*models.InvitationLink, error)
 }
 
 type invitationLinkRepository struct {

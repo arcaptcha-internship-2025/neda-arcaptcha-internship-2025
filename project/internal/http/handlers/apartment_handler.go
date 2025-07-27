@@ -186,13 +186,9 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 	}
 
 	//checkin if the user is actually a manager of this apartment
-	isManager, err := h.userApartmentRepo.IsUserManagerOfApartment(r.Context(), managerID, apartmentID)
+	_, err = h.userApartmentRepo.IsUserManagerOfApartment(r.Context(), managerID, apartmentID)
 	if err != nil {
 		http.Error(w, "failed to verify apartment manager status", http.StatusInternalServerError)
-		return
-	}
-	if !isManager {
-		http.Error(w, "only apartment managers can invite residents", http.StatusForbidden)
 		return
 	}
 
@@ -208,13 +204,9 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	isResident, err := h.userApartmentRepo.IsUserInApartment(r.Context(), receiver.ID, apartmentID)
+	_, err = h.userApartmentRepo.IsUserInApartment(r.Context(), receiver.ID, apartmentID)
 	if err != nil {
 		http.Error(w, "failed to check resident status", http.StatusInternalServerError)
-		return
-	}
-	if isResident {
-		http.Error(w, "user is already a resident of this apartment", http.StatusConflict)
 		return
 	}
 
@@ -238,7 +230,7 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	inviteURL := fmt.Sprintf("%s/join?token=%s", h.appBaseURL, token)
+	inviteURL := fmt.Sprintf("%s/apartment/join?token=%s", h.appBaseURL, token)
 
 	invitation := models.InvitationLink{
 		SenderID:         managerID,
@@ -260,15 +252,7 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 
 	//sending notification via Telegram
 	if err := h.notificationService.SendInvitation(r.Context(), invitation); err != nil {
-		//if notif fails, mark as failed but still return success to user
-		_ = h.inviteLinkRepo.MarkInvitationNotified(r.Context(), token)
 		http.Error(w, "invitation created but failed to send notification", http.StatusInternalServerError)
-		return
-	}
-
-	//marking invitation as notified
-	if err := h.inviteLinkRepo.MarkInvitationNotified(r.Context(), token); err != nil {
-		http.Error(w, "invitation created but failed to update status", http.StatusInternalServerError)
 		return
 	}
 
@@ -317,11 +301,6 @@ func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.inviteLinkRepo.MarkInvitationUsed(r.Context(), token); err != nil {
-		http.Error(w, "failed to update invitation status", http.StatusInternalServerError)
-		return
-	}
-
 	userApartment := models.User_apartment{
 		UserID:      userID,
 		ApartmentID: inv.ApartmentID,
@@ -339,39 +318,6 @@ func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request)
 		"status":       "joined apartment",
 		"apartment_id": inv.ApartmentID,
 		"apartment":    inv.ApartmentName,
-	})
-}
-
-func (h *ApartmentHandler) RejectInvitation(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "token is required", http.StatusBadRequest)
-		return
-	}
-
-	//getting invitation by token
-	inv, err := h.inviteLinkRepo.GetInvitationByToken(r.Context(), token)
-	if err != nil {
-		http.Error(w, "invalid or expired token", http.StatusBadRequest)
-		return
-	}
-
-	//checking if invitation is still pending
-	if inv.Status != models.InvitationStatusPending {
-		http.Error(w, "invitation is no longer valid", http.StatusBadRequest)
-		return
-	}
-
-	//mark invitation as rejected
-	if err := h.inviteLinkRepo.MarkInvitationRejected(r.Context(), token); err != nil {
-		http.Error(w, "failed to update invitation status", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "invitation rejected",
 	})
 }
 

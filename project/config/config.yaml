@@ -1,6 +1,6 @@
 server:
   port: :8080
-  app_base_url: "https://apartment.com"
+  app_base_url: "http://localhost"
 
 postgres:
   host: localhost

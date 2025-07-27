@@ -98,13 +98,5 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	residentRoutes.HandleFunc("/bills/payment-history", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.billHandler.GetUserPaymentHistory,
 	}))
-	//rejection route for invitations (can be accessed by anyone with the token)
-	v1.HandleFunc("/invitation/reject", s.methodHandler(map[string]http.HandlerFunc{
-		"POST": s.apartmentHandler.RejectInvitation,
-	}))
-
-	v1.HandleFunc("/telegram/webhook", utils.MethodHandler(map[string]http.HandlerFunc{
-		"POST": s.handleTelegramWebhook,
-	}))
 
 }
