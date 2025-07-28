@@ -45,7 +45,6 @@ type Redis struct {
 type TelegramConfig struct {
 	BotToken       string        `yaml:"bot_token"`
 	Timeout        time.Duration `yaml:"timeout"`
-	WebhookURL     string        `yaml:"webhook_url"`     // full URL to my webhook endpoint
 	MaxConnections int           `yaml:"max_connections"` // max simultaneous connections
 }
 

@@ -84,29 +84,8 @@ func (r *invitationLinkRepository) GetInvitationByToken(ctx context.Context, tok
 	return &inv, nil
 }
 
-func (r *invitationLinkRepository) MarkInvitationUsed(ctx context.Context, token string) error {
-	return r.updateInvitationStatus(ctx, token, models.InvitationStatusAccepted)
-}
-
-func (r *invitationLinkRepository) MarkInvitationRejected(ctx context.Context, token string) error {
-	return r.updateInvitationStatus(ctx, token, models.InvitationStatusRejected)
-}
-
 func (r *invitationLinkRepository) MarkInvitationExpired(ctx context.Context, token string) error {
 	return r.updateInvitationStatus(ctx, token, models.InvitationStatusExpired)
-}
-
-func (r *invitationLinkRepository) MarkInvitationNotified(ctx context.Context, token string) error {
-	inv, err := r.GetInvitationByToken(ctx, token)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now()
-	inv.NotificationSentAt = &now
-	inv.Status = models.InvitationStatusNotified
-
-	return r.saveInvitation(ctx, token, inv)
 }
 
 func (r *invitationLinkRepository) updateInvitationStatus(ctx context.Context, token string, status models.InvitationStatus) error {
@@ -141,52 +120,4 @@ func (r *invitationLinkRepository) saveInvitation(ctx context.Context, token str
 
 	_, err = pipe.Exec(ctx)
 	return err
-}
-
-func (r *invitationLinkRepository) GetPendingInvitations(ctx context.Context) ([]*models.InvitationLink, error) {
-	tokens, err := r.redisClient.SMembers(ctx, "pending_invitations").Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pending invitations: %w", err)
-	}
-
-	var invitations []*models.InvitationLink
-	for _, token := range tokens {
-		inv, err := r.GetInvitationByToken(ctx, token)
-		if err != nil {
-			continue //invalid invitations
-		}
-		invitations = append(invitations, inv)
-	}
-
-	return invitations, nil
-}
-
-func (r *invitationLinkRepository) GetInvitationsByUser(ctx context.Context, username string) ([]*models.InvitationLink, error) {
-	tokens, err := r.redisClient.SMembers(ctx, "user_invitations:"+username).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user invitations: %w", err)
-	}
-
-	return r.getInvitationsByTokens(ctx, tokens)
-}
-
-func (r *invitationLinkRepository) GetInvitationsByApartment(ctx context.Context, apartmentID int) ([]*models.InvitationLink, error) {
-	tokens, err := r.redisClient.SMembers(ctx, "apartment_invitations:"+strconv.Itoa(apartmentID)).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get apartment invitations: %w", err)
-	}
-
-	return r.getInvitationsByTokens(ctx, tokens)
-}
-
-func (r *invitationLinkRepository) getInvitationsByTokens(ctx context.Context, tokens []string) ([]*models.InvitationLink, error) {
-	var invitations []*models.InvitationLink
-	for _, token := range tokens {
-		inv, err := r.GetInvitationByToken(ctx, token)
-		if err != nil {
-			continue //skipping invalid invitations
-		}
-		invitations = append(invitations, inv)
-	}
-	return invitations, nil
 }
