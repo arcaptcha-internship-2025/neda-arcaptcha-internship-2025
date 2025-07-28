@@ -118,24 +118,24 @@ func TestUserRepository_UpdateTelegramChatID(t *testing.T) {
 	sqlxDB := sqlx.NewDb(db, "sqlmock")
 	repo := NewUserRepository(false, sqlxDB)
 
-	userID := 1
+	telegramUsername := "testuser"
 	chatID := int64(12345)
 
 	t.Run("success", func(t *testing.T) {
 		mock.ExpectExec(`UPDATE users SET telegram_chat_id`).
-			WithArgs(chatID, userID).
+			WithArgs(chatID, telegramUsername).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.UpdateTelegramChatID(context.Background(), userID, chatID)
+		err := repo.UpdateTelegramChatID(context.Background(), telegramUsername, chatID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		mock.ExpectExec(`UPDATE users SET telegram_chat_id`).
-			WithArgs(chatID, userID).
+			WithArgs(chatID, telegramUsername).
 			WillReturnError(sql.ErrConnDone)
 
-		err := repo.UpdateTelegramChatID(context.Background(), userID, chatID)
+		err := repo.UpdateTelegramChatID(context.Background(), telegramUsername, chatID)
 		assert.Error(t, err)
 	})
 

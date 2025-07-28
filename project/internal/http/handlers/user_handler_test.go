@@ -84,8 +84,8 @@ func (m *MockUserRepository) GetUserByTelegramUser(telegramUser string) (*models
 	return args.Get(0).(*models.User), args.Error(1)
 }
 
-func (m *MockUserRepository) UpdateTelegramChatID(ctx context.Context, userID int, chatID int64) error {
-	args := m.Called(ctx, userID, chatID)
+func (m *MockUserRepository) UpdateTelegramChatID(ctx context.Context, telegramUsername string, chatID int64) error {
+	args := m.Called(ctx, telegramUsername, chatID)
 	return args.Error(0)
 }
 
