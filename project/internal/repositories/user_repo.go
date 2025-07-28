@@ -35,7 +35,7 @@ type UserRepository interface {
 	GetUserByEmail(email string) (*models.User, error)
 	GetUserByPhone(phone string) (*models.User, error)
 	GetUserByTelegramUser(telegramUser string) (*models.User, error)
-	UpdateTelegramChatID(ctx context.Context, userID int, chatID int64) error
+	UpdateTelegramChatID(ctx context.Context, telegramUsername string, chatID int64) error
 }
 
 type userRepositoryImpl struct {
@@ -163,8 +163,8 @@ func (r *userRepositoryImpl) GetUserByTelegramUser(telegramUser string) (*models
 	return &user, nil
 }
 
-func (r *userRepositoryImpl) UpdateTelegramChatID(ctx context.Context, userID int, chatID int64) error {
-	query := `UPDATE users SET telegram_chat_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`
-	_, err := r.db.ExecContext(ctx, query, chatID, userID)
+func (r *userRepositoryImpl) UpdateTelegramChatID(ctx context.Context, telegramUsername string, chatID int64) error {
+	query := `UPDATE users SET telegram_chat_id = $1, updated_at = CURRENT_TIMESTAMP WHERE telegram_user = $2`
+	_, err := r.db.ExecContext(ctx, query, chatID, telegramUsername)
 	return err
 }

@@ -3,6 +3,7 @@ module github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-
 go 1.23.2
 
 require (
+	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/minio/minio-go/v7 v7.0.94
 	github.com/redis/go-redis/v9 v9.11.0

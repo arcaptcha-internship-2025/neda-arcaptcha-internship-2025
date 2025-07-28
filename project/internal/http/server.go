@@ -109,6 +109,7 @@ func (s *ApartmantService) Start(serviceName string) error {
 	}
 
 	s.setupSignalHandling()
+	go s.notificationService.ListenForUpdates(context.Background())
 
 	s.shutdownWG.Add(1)
 	go func() {

@@ -3,134 +3,49 @@ package notification
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
+	"log"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
 )
 
-// for making HTTP requests
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 type Notification interface {
 	SendNotification(ctx context.Context, userID int, message string) error
 	SendInvitation(ctx context.Context, inv models.InvitationLink) error
-	HandleStartCommand(ctx context.Context, telegramUser string, chatID int64) error
-	HandleWebhookUpdate(ctx context.Context, update Update) error
 	SendBillNotification(ctx context.Context, userID int, bill models.Bill, amount float64) error
+	ListenForUpdates(ctx context.Context)
 }
 
 type notificationImpl struct {
-	httpClient HTTPClient
-	botToken   string
-	baseURL    string
 	appBaseURL string
 	userRepo   repositories.UserRepository
-}
-
-// Update represents a telegram bot update from getUpdates or webhook
-type Update struct {
-	UpdateID int     `json:"update_id"`
-	Message  Message `json:"message"`
-}
-
-// telegram message
-type Message struct {
-	MessageID int    `json:"message_id"`
-	From      User   `json:"from"`
-	Chat      Chat   `json:"chat"`
-	Text      string `json:"text"`
-}
-
-// telegram user
-type User struct {
-	ID        int64  `json:"id"`
-	Username  string `json:"username"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-}
-
-// telegram chat
-type Chat struct {
-	ID        int64  `json:"id"`
-	Type      string `json:"type"`
-	Username  string `json:"username"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
+	bot        *tgbotapi.BotAPI
 }
 
 func NewNotification(cfg config.TelegramConfig, appBaseURL string, userRepo repositories.UserRepository) Notification {
+	bot, err := tgbotapi.NewBotAPI(cfg.BotToken)
+	if err != nil {
+		log.Fatalf("Failed to create bot: %v", err)
+	}
+
 	return &notificationImpl{
-		httpClient: &http.Client{Timeout: cfg.Timeout},
-		botToken:   cfg.BotToken,
-		baseURL:    fmt.Sprintf("https://api.telegram.org/bot%s/", cfg.BotToken),
 		appBaseURL: appBaseURL,
 		userRepo:   userRepo,
+		bot:        bot,
 	}
 }
 
-func (n *notificationImpl) HandleWebhookUpdate(ctx context.Context, update Update) error {
-	// Handle /start command
-	if strings.HasPrefix(update.Message.Text, "/start") {
-		return n.HandleStartCommand(
-			ctx,
-			update.Message.From.Username,
-			update.Message.Chat.ID,
-		)
-	}
+func (n *notificationImpl) sendMessage(chatID int64, message string) error {
+	msg := tgbotapi.NewMessage(chatID, message)
+	msg.ParseMode = "Markdown"
 
-	// todo: add handling for other commands
-	return nil
-}
-
-func (n *notificationImpl) HandleStartCommand(ctx context.Context, telegramUser string, chatID int64) error {
-	user, err := n.userRepo.GetUserByTelegramUser(telegramUser)
+	_, err := n.bot.Send(msg)
 	if err != nil {
-		return fmt.Errorf("user not found with Telegram username: %s", telegramUser)
+		return fmt.Errorf("failed to send message via tgbot: %w", err)
 	}
-
-	if err := n.userRepo.UpdateTelegramChatID(ctx, user.ID, chatID); err != nil {
-		return fmt.Errorf("failed to update Telegram chat ID: %w", err)
-	}
-
-	welcomeMsg := fmt.Sprintf(
-		"Hello %s! You've successfully connected your account.\n\n"+
-			"You'll now receive notifications from our service here.",
-		user.FullName,
-	)
-	return n.sendMessage(ctx, chatID, welcomeMsg)
-}
-
-func (n *notificationImpl) sendMessage(ctx context.Context, chatID int64, message string) error {
-	endpoint := n.baseURL + "sendMessage"
-	data := url.Values{}
-	data.Set("chat_id", strconv.FormatInt(chatID, 10))
-	data.Set("text", message)
-	data.Set("parse_mode", "Markdown") //md formatting
-
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(data.Encode()))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := n.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send message: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("telegram API returned non-200 status: %d", resp.StatusCode)
-	}
-
 	return nil
 }
 
@@ -144,7 +59,7 @@ func (n *notificationImpl) SendNotification(ctx context.Context, userID int, mes
 		return fmt.Errorf("user hasn't started the bot yet")
 	}
 
-	return n.sendMessage(ctx, user.TelegramChatID, message)
+	return n.sendMessage(user.TelegramChatID, message)
 }
 
 func (n *notificationImpl) SendInvitation(ctx context.Context, inv models.InvitationLink) error {
@@ -168,7 +83,7 @@ func (n *notificationImpl) SendInvitation(ctx context.Context, inv models.Invita
 		inv.ExpiresAt.Format("2006-01-02 15:04:05"),
 	)
 
-	return n.sendMessage(ctx, receiver.TelegramChatID, message)
+	return n.sendMessage(receiver.TelegramChatID, message)
 }
 
 func (n *notificationImpl) SendBillNotification(ctx context.Context, userID int, bill models.Bill, amount float64) error {
@@ -182,16 +97,40 @@ func (n *notificationImpl) SendBillNotification(ctx context.Context, userID int,
 	}
 
 	message := fmt.Sprintf(
-		" *New Bill Notification*\n\n"+
+		"*New Bill Notification*\n\n"+
 			"Type: %s\n"+
 			"Your Share: %.2f\n"+
 			"Due Date: %s\n"+
-			"Description: %s\n\n",
+			"Description: %s\n",
 		bill.BillType, amount, bill.DueDate, bill.Description)
 
 	if bill.ImageURL != "" {
-		message += "Bill image is available in your dashboard"
+		message += "\n📷 Bill image is available in your dashboard"
 	}
 
-	return n.sendMessage(ctx, user.TelegramChatID, message)
+	return n.sendMessage(user.TelegramChatID, message)
+}
+
+func (n *notificationImpl) ListenForUpdates(ctx context.Context) {
+	updateConfig := tgbotapi.NewUpdate(0)
+	updateConfig.Timeout = 30
+
+	updates := n.bot.GetUpdatesChan(updateConfig)
+
+	for update := range updates {
+		if update.Message != nil {
+			go n.handleMessage(ctx, n.bot, update)
+		}
+	}
+}
+
+func (n *notificationImpl) handleMessage(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	if update.Message.IsCommand() && update.Message.Command() == "start" {
+		chatID := update.Message.Chat.ID
+		username := update.SentFrom().UserName
+		n.userRepo.UpdateTelegramChatID(ctx, username, chatID)
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("Welcome, %s! Bot is active.", username))
+		bot.Send(msg)
+		return
+	}
 }
