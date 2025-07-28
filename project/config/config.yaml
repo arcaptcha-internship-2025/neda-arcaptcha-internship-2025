@@ -12,5 +12,4 @@ postgres:
 telegram_config:
   bot_token: ""
   timeout: 30s
-  webhook: ""
   maxconnections: 5

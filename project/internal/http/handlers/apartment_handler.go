@@ -185,10 +185,14 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	//checkin if the user is actually a manager of this apartment
-	_, err = h.userApartmentRepo.IsUserManagerOfApartment(r.Context(), managerID, apartmentID)
+	//checking if the user is actually a manager of this apartment
+	isManager, err := h.userApartmentRepo.IsUserManagerOfApartment(r.Context(), managerID, apartmentID)
 	if err != nil {
 		http.Error(w, "failed to verify apartment manager status", http.StatusInternalServerError)
+		return
+	}
+	if !isManager {
+		http.Error(w, "only apartment managers can send invitations", http.StatusForbidden)
 		return
 	}
 
@@ -204,9 +208,13 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	_, err = h.userApartmentRepo.IsUserInApartment(r.Context(), receiver.ID, apartmentID)
+	isResident, err := h.userApartmentRepo.IsUserInApartment(r.Context(), receiver.ID, apartmentID)
 	if err != nil {
 		http.Error(w, "failed to check resident status", http.StatusInternalServerError)
+		return
+	}
+	if isResident {
+		http.Error(w, "user is already a resident of this apartment", http.StatusConflict)
 		return
 	}
 
