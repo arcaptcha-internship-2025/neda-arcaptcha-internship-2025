@@ -91,7 +91,7 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = r.ParseMultipartForm(10 << 20) // 10 MB max
+	err = r.ParseMultipartForm(32 << 20) // 32 MB max
 	if err != nil {
 		http.Error(w, "failed to parse form data", http.StatusBadRequest)
 		return
@@ -109,7 +109,29 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//get the actual residents in that apartment count
+	validBillTypes := map[models.BillType]bool{
+		models.WaterBill:       true,
+		models.ElectricityBill: true,
+		models.GasBill:         true,
+		models.MaintenanceBill: true,
+		models.OtherBill:       true,
+	}
+	if !validBillTypes[req.BillType] {
+		http.Error(w, "invalid bill type", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := time.Parse("2006-01-02", req.DueDate); err != nil {
+		http.Error(w, "invalid due date format (use YYYY-MM-DD)", http.StatusBadRequest)
+		return
+	}
+	if req.BillingDeadline != "" {
+		if _, err := time.Parse("2006-01-02", req.BillingDeadline); err != nil {
+			http.Error(w, "invalid billing deadline format (use YYYY-MM-DD)", http.StatusBadRequest)
+			return
+		}
+	}
+
 	residents, err := h.userApartmentRepo.GetResidentsInApartment(apartmentID)
 	if err != nil {
 		http.Error(w, "failed to get residents", http.StatusInternalServerError)
@@ -121,12 +143,12 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//bill devision
 	amountPerResident := req.TotalAmount / float64(len(residents))
 
-	var imageURL string
+	//optional image upload
+	var imageKey string
 	file, handler, err := r.FormFile("bill_image")
-	if err == nil {
+	if err == nil { //image is provided
 		defer file.Close()
 
 		fileBytes, err := io.ReadAll(file)
@@ -135,12 +157,16 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		imageURL, err = h.imageService.SaveImage(r.Context(), fileBytes, handler.Filename)
+		imageKey, err = h.imageService.SaveImage(r.Context(), fileBytes, handler.Filename)
 		if err != nil {
-			http.Error(w, "failed to save image", http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("failed to save image: %v", err), http.StatusInternalServerError)
 			return
 		}
+	} else if err != http.ErrMissingFile {
+		http.Error(w, "failed to process image file", http.StatusInternalServerError)
+		return
 	}
+	// if err == http.ErrMissingFile, imageKey remains empty (which is fine)
 
 	bill := models.Bill{
 		ApartmentID:     apartmentID,
@@ -149,17 +175,24 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		DueDate:         req.DueDate,
 		BillingDeadline: req.BillingDeadline,
 		Description:     req.Description,
-		ImageURL:        imageURL,
+		ImageURL:        imageKey, // storing the object key, not full URL
 	}
 
 	billID, err := h.repo.CreateBill(r.Context(), bill)
 	if err != nil {
+		//if bill creation fails and we uploaded an image, clean it up
+		if imageKey != "" {
+			if delErr := h.imageService.DeleteImage(r.Context(), imageKey); delErr != nil {
+				log.Printf("Failed to cleanup uploaded image %s: %v", imageKey, delErr)
+			}
+		}
 		http.Error(w, "Failed to create bill", http.StatusInternalServerError)
 		return
 	}
 
 	bill.ID = billID
 
+	var failedPayments []int
 	for _, resident := range residents {
 		payment := models.Payment{
 			BillID:        billID,
@@ -169,22 +202,30 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err := h.paymentRepo.CreatePayment(r.Context(), payment)
 		if err != nil {
-			http.Error(w, "failed to create payment record", http.StatusInternalServerError)
-			return
+			log.Printf("Failed to create payment record for user %d: %v", resident.ID, err)
+			failedPayments = append(failedPayments, resident.ID)
+			continue
 		}
 
-		//send notif
 		if err := h.notificationService.SendBillNotification(r.Context(), resident.ID, bill, amountPerResident); err != nil {
-			log.Printf("failed to send notification to user %d: %v", resident.ID, err)
+			log.Printf("Failed to send notification to user %d: %v", resident.ID, err)
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	response := map[string]interface{}{
 		"id":                billID,
 		"residents_count":   len(residents),
 		"amount_per_person": amountPerResident,
-	})
+		"image_uploaded":    imageKey != "",
+	}
+
+	if len(failedPayments) > 0 {
+		response["warning"] = fmt.Sprintf("Failed to create payment records for %d residents", len(failedPayments))
+		response["failed_residents"] = failedPayments
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *BillHandler) GetBillByID(w http.ResponseWriter, r *http.Request) {
@@ -201,8 +242,31 @@ func (h *BillHandler) GetBillByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//converting image key to accessible URL if image exists
+	var imageURL string
+	if bill.ImageURL != "" {
+		imageURL, err = h.imageService.GetImageURL(r.Context(), bill.ImageURL)
+		if err != nil {
+			log.Printf("Failed to generate image URL for bill %d: %v", id, err)
+		}
+	}
+
+	//response with accessible image URL
+	response := map[string]interface{}{
+		"id":               bill.ID,
+		"apartment_id":     bill.ApartmentID,
+		"bill_type":        bill.BillType,
+		"total_amount":     bill.TotalAmount,
+		"due_date":         bill.DueDate,
+		"billing_deadline": bill.BillingDeadline,
+		"description":      bill.Description,
+		"image_url":        imageURL, // will be empty string if no image
+		"created_at":       bill.CreatedAt,
+		"updated_at":       bill.UpdatedAt,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(bill)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *BillHandler) GetBillsByApartment(w http.ResponseWriter, r *http.Request) {
