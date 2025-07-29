@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -13,11 +15,14 @@ import (
 
 type Image interface {
 	SaveImage(ctx context.Context, image []byte, filename string) (string, error)
+	GetImageURL(ctx context.Context, filename string) (string, error)
+	DeleteImage(ctx context.Context, filename string) error
 }
 
 type imageImpl struct {
 	minioClient *minio.Client
 	bucket      string
+	endpoint    string
 }
 
 func NewImage(minioEndpoint, accessKey, secretKey, bucket string) Image {
@@ -44,12 +49,42 @@ func NewImage(minioEndpoint, accessKey, secretKey, bucket string) Image {
 	return &imageImpl{
 		minioClient: minioClient,
 		bucket:      bucket,
+		endpoint:    minioEndpoint,
 	}
 }
 
 func (i *imageImpl) SaveImage(ctx context.Context, image []byte, filename string) (string, error) {
+	if len(image) > 10*1024*1024 {
+		return "", fmt.Errorf("image size exceeds 10MB limit")
+	}
+
+	ext := strings.ToLower(filepath.Ext(filename))
+	allowedExts := map[string]bool{
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".gif":  true,
+		".pdf":  true,
+	}
+
+	if !allowedExts[ext] {
+		return "", fmt.Errorf("unsupported file type: %s", ext)
+	}
+
 	//unique filename with timestamp
-	uniqueFilename := fmt.Sprintf("%d_%s", time.Now().Unix(), filename)
+	uniqueFilename := fmt.Sprintf("bills/%d_%s", time.Now().Unix(), filename)
+
+	contentType := "application/octet-stream"
+	switch ext {
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	case ".gif":
+		contentType = "image/gif"
+	case ".pdf":
+		contentType = "application/pdf"
+	}
 
 	//uploading the file
 	_, err := i.minioClient.PutObject(
@@ -58,12 +93,47 @@ func (i *imageImpl) SaveImage(ctx context.Context, image []byte, filename string
 		uniqueFilename,
 		bytes.NewReader(image),
 		int64(len(image)),
-		minio.PutObjectOptions{ContentType: "application/octet-stream"},
+		minio.PutObjectOptions{
+			ContentType: contentType,
+		},
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to upload image: %w", err)
 	}
 
-	//URL/path to the stored image
-	return fmt.Sprintf("/%s/%s", i.bucket, uniqueFilename), nil
+	//returning the object key (not full URL)
+	return uniqueFilename, nil
+}
+
+func (i *imageImpl) GetImageURL(ctx context.Context, objectKey string) (string, error) {
+	if objectKey == "" {
+		return "", nil
+	}
+
+	//generating presigned URL for secure access (expires in 24 hours)
+	presignedURL, err := i.minioClient.PresignedGetObject(
+		ctx,
+		i.bucket,
+		objectKey,
+		24*time.Hour,
+		nil,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return presignedURL.String(), nil
+}
+
+func (i *imageImpl) DeleteImage(ctx context.Context, objectKey string) error {
+	if objectKey == "" {
+		return nil
+	}
+
+	err := i.minioClient.RemoveObject(ctx, i.bucket, objectKey, minio.RemoveObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to delete image: %w", err)
+	}
+
+	return nil
 }

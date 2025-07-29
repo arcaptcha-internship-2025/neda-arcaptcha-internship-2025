@@ -71,29 +71,29 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 	apartmentIDStr := r.PathValue("apartment-id")
 	apartmentID, err := strconv.Atoi(apartmentIDStr)
 	if err != nil {
-		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
+		http.Error(w, "invalid apartment ID", http.StatusBadRequest)
 		return
 	}
 
 	userID, ok := r.Context().Value("user_id").(int)
 	if !ok {
-		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
+		http.Error(w, "failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
 
 	isManager, err := h.userApartmentRepo.IsUserManagerOfApartment(r.Context(), userID, apartmentID)
 	if err != nil {
-		http.Error(w, "Failed to verify manager status", http.StatusInternalServerError)
+		http.Error(w, "failed to verify manager status", http.StatusInternalServerError)
 		return
 	}
 	if !isManager {
-		http.Error(w, "Only apartment managers can create bills", http.StatusForbidden)
+		http.Error(w, "only apartment managers can create bills", http.StatusForbidden)
 		return
 	}
 
 	err = r.ParseMultipartForm(10 << 20) // 10 MB max
 	if err != nil {
-		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		http.Error(w, "failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -105,22 +105,23 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 	req.Description = r.FormValue("description")
 
 	if req.BillType == "" || req.TotalAmount <= 0 || req.DueDate == "" {
-		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		http.Error(w, "missing required fields", http.StatusBadRequest)
 		return
 	}
 
 	//get the actual residents in that apartment count
 	residents, err := h.userApartmentRepo.GetResidentsInApartment(apartmentID)
 	if err != nil {
-		http.Error(w, "Failed to get residents", http.StatusInternalServerError)
+		http.Error(w, "failed to get residents", http.StatusInternalServerError)
 		return
 	}
 
 	if len(residents) == 0 {
-		http.Error(w, "No residents found in apartment", http.StatusBadRequest)
+		http.Error(w, "no residents found in apartment", http.StatusBadRequest)
 		return
 	}
 
+	//bill devision
 	amountPerResident := req.TotalAmount / float64(len(residents))
 
 	var imageURL string
@@ -130,13 +131,13 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 
 		fileBytes, err := io.ReadAll(file)
 		if err != nil {
-			http.Error(w, "Failed to read file", http.StatusInternalServerError)
+			http.Error(w, "failed to read file", http.StatusInternalServerError)
 			return
 		}
 
 		imageURL, err = h.imageService.SaveImage(r.Context(), fileBytes, handler.Filename)
 		if err != nil {
-			http.Error(w, "Failed to save image", http.StatusInternalServerError)
+			http.Error(w, "failed to save image", http.StatusInternalServerError)
 			return
 		}
 	}
