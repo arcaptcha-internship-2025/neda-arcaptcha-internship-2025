@@ -15,6 +15,12 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+type contextKey string
+
+const (
+	userIDContextKey contextKey = "user_id"
+)
+
 type mockApartmentRepo struct {
 	mock.Mock
 }
@@ -225,7 +231,7 @@ func TestCreateApartment(t *testing.T) {
 			}
 
 			req := httptest.NewRequest("POST", "/apartments", strings.NewReader(tt.requestBody))
-			req = req.WithContext(context.WithValue(req.Context(), "user_id", tt.userID))
+			req = req.WithContext(context.WithValue(req.Context(), userIDContextKey, tt.userID))
 			w := httptest.NewRecorder()
 
 			handler.CreateApartment(w, req)
@@ -451,7 +457,7 @@ func TestInviteUserToApartment(t *testing.T) {
 				"apartment-id":      tt.apartmentID,
 				"telegram-username": tt.telegramUser,
 			})
-			req = req.WithContext(context.WithValue(req.Context(), "user_id", tt.managerID))
+			req = req.WithContext(context.WithValue(req.Context(), userIDContextKey, tt.managerID))
 			w := httptest.NewRecorder()
 
 			handler.InviteUserToApartment(w, req)
@@ -532,7 +538,7 @@ func TestJoinApartment(t *testing.T) {
 
 			//creating req with query parameter
 			req := httptest.NewRequest("POST", "/apartment/join?token="+tt.token, nil)
-			req = req.WithContext(context.WithValue(req.Context(), "user_id", tt.userID))
+			req = req.WithContext(context.WithValue(req.Context(), userIDContextKey, tt.userID))
 			w := httptest.NewRecorder()
 
 			handler.JoinApartment(w, req)
@@ -589,7 +595,7 @@ func TestLeaveApartment(t *testing.T) {
 			}
 
 			req := httptest.NewRequest("POST", "/apartments/leave?apartment_id="+tt.apartmentID, nil)
-			req = req.WithContext(context.WithValue(req.Context(), "user_id", tt.userID))
+			req = req.WithContext(context.WithValue(req.Context(), userIDContextKey, tt.userID))
 			w := httptest.NewRecorder()
 
 			handler.LeaveApartment(w, req)
