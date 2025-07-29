@@ -12,90 +12,18 @@ import (
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type MockUserRepository struct {
-	mock.Mock
-}
-
-func (m *MockUserRepository) CreateUser(ctx context.Context, user models.User) (int, error) {
-	args := m.Called(ctx, user)
-	return args.Int(0), args.Error(1)
-}
-
-func (m *MockUserRepository) GetUserByID(id int) (*models.User, error) {
-	args := m.Called(id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (m *MockUserRepository) UpdateUser(ctx context.Context, user models.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
-}
-
-func (m *MockUserRepository) DeleteUser(id int) error {
-	args := m.Called(id)
-	return args.Error(0)
-}
-
-func (m *MockUserRepository) GetAllUsers(ctx context.Context) ([]models.User, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]models.User), args.Error(1)
-}
-
-func (m *MockUserRepository) GetUserByUsername(username string) (*models.User, error) {
-	args := m.Called(username)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (m *MockUserRepository) GetUserByEmail(email string) (*models.User, error) {
-	args := m.Called(email)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (m *MockUserRepository) GetUserByPhone(phone string) (*models.User, error) {
-	args := m.Called(phone)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (m *MockUserRepository) GetUserByTelegramUser(telegramUser string) (*models.User, error) {
-	args := m.Called(telegramUser)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.User), args.Error(1)
-}
-
-func (m *MockUserRepository) UpdateTelegramChatID(ctx context.Context, telegramUsername string, chatID int64) error {
-	args := m.Called(ctx, telegramUsername, chatID)
-	return args.Error(0)
-}
-
 func TestUserHandler_SignUp(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    CreateUserRequest
-		setupMocks     func(*MockUserRepository)
+		setupMocks     func(*repositories.MockUserRepository)
 		expectedStatus int
-		expectedData   bool
 	}{
 		{
 			name: "successful signup",
@@ -108,13 +36,12 @@ func TestUserHandler_SignUp(t *testing.T) {
 				UserType:     models.Resident,
 				TelegramUser: "testuser_tg",
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("GetUserByUsername", "testuser").Return(nil, sql.ErrNoRows)
 				m.On("GetUserByTelegramUser", "testuser_tg").Return(nil, sql.ErrNoRows)
 				m.On("CreateUser", mock.AnythingOfType("*context.timerCtx"), mock.AnythingOfType("models.User")).Return(1, nil)
 			},
 			expectedStatus: http.StatusOK,
-			expectedData:   true,
 		},
 		{
 			name: "missing required fields",
@@ -122,9 +49,8 @@ func TestUserHandler_SignUp(t *testing.T) {
 				Username: "testuser",
 				// missing password and email
 			},
-			setupMocks:     func(m *MockUserRepository) {},
+			setupMocks:     func(m *repositories.MockUserRepository) {},
 			expectedStatus: http.StatusBadRequest,
-			expectedData:   false,
 		},
 		{
 			name: "invalid user type",
@@ -134,9 +60,8 @@ func TestUserHandler_SignUp(t *testing.T) {
 				Email:    "test@example.com",
 				UserType: "invalid",
 			},
-			setupMocks:     func(m *MockUserRepository) {},
+			setupMocks:     func(m *repositories.MockUserRepository) {},
 			expectedStatus: http.StatusBadRequest,
-			expectedData:   false,
 		},
 		{
 			name: "invalid telegram username",
@@ -147,9 +72,8 @@ func TestUserHandler_SignUp(t *testing.T) {
 				UserType:     models.Resident,
 				TelegramUser: "abc", // too short
 			},
-			setupMocks:     func(m *MockUserRepository) {},
+			setupMocks:     func(m *repositories.MockUserRepository) {},
 			expectedStatus: http.StatusBadRequest,
-			expectedData:   false,
 		},
 		{
 			name: "username already exists",
@@ -159,12 +83,11 @@ func TestUserHandler_SignUp(t *testing.T) {
 				Email:    "test@example.com",
 				UserType: models.Resident,
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				existingUser := &models.User{Username: "testuser"}
 				m.On("GetUserByUsername", "testuser").Return(existingUser, nil)
 			},
 			expectedStatus: http.StatusConflict,
-			expectedData:   false,
 		},
 		{
 			name: "telegram username already exists",
@@ -175,19 +98,18 @@ func TestUserHandler_SignUp(t *testing.T) {
 				UserType:     models.Resident,
 				TelegramUser: "existing_tg",
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("GetUserByUsername", "testuser").Return(nil, sql.ErrNoRows)
 				existingTgUser := &models.User{TelegramUser: "existing_tg"}
 				m.On("GetUserByTelegramUser", "existing_tg").Return(existingTgUser, nil)
 			},
 			expectedStatus: http.StatusConflict,
-			expectedData:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockUserRepository)
+			mockRepo := new(repositories.MockUserRepository)
 			tt.setupMocks(mockRepo)
 
 			handler := NewUserHandler(mockRepo)
@@ -211,7 +133,7 @@ func TestUserHandler_Login(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    LoginRequest
-		setupMocks     func(*MockUserRepository)
+		setupMocks     func(*repositories.MockUserRepository)
 		expectedStatus int
 	}{
 		{
@@ -220,7 +142,7 @@ func TestUserHandler_Login(t *testing.T) {
 				Username: "testuser",
 				Password: "password123",
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				user := &models.User{
 					Username:       "testuser",
 					Password:       string(hashedPassword),
@@ -241,7 +163,7 @@ func TestUserHandler_Login(t *testing.T) {
 				Username: "nonexistent",
 				Password: "password123",
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("GetUserByUsername", "nonexistent").Return(nil, sql.ErrNoRows)
 			},
 			expectedStatus: http.StatusUnauthorized,
@@ -252,7 +174,7 @@ func TestUserHandler_Login(t *testing.T) {
 				Username: "testuser",
 				Password: "wrongpassword",
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				user := &models.User{
 					Username: "testuser",
 					Password: string(hashedPassword),
@@ -267,14 +189,14 @@ func TestUserHandler_Login(t *testing.T) {
 				Username: "testuser",
 				// missing password
 			},
-			setupMocks:     func(m *MockUserRepository) {},
+			setupMocks:     func(m *repositories.MockUserRepository) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockUserRepository)
+			mockRepo := new(repositories.MockUserRepository)
 			tt.setupMocks(mockRepo)
 
 			handler := NewUserHandler(mockRepo)
@@ -296,13 +218,13 @@ func TestUserHandler_GetProfile(t *testing.T) {
 	tests := []struct {
 		name           string
 		userID         string
-		setupMocks     func(*MockUserRepository)
+		setupMocks     func(*repositories.MockUserRepository)
 		expectedStatus int
 	}{
 		{
 			name:   "successful profile retrieval",
 			userID: "1",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				user := &models.User{
 					Username:       "testuser",
 					Email:          "test@example.com",
@@ -320,7 +242,7 @@ func TestUserHandler_GetProfile(t *testing.T) {
 		{
 			name:   "user not found",
 			userID: "999",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("GetUserByID", 999).Return(nil, sql.ErrNoRows)
 			},
 			expectedStatus: http.StatusNotFound,
@@ -329,7 +251,7 @@ func TestUserHandler_GetProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockUserRepository)
+			mockRepo := new(repositories.MockUserRepository)
 			tt.setupMocks(mockRepo)
 
 			handler := NewUserHandler(mockRepo)
@@ -352,7 +274,7 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 		name           string
 		userID         string
 		requestBody    UpdateProfileRequest
-		setupMocks     func(*MockUserRepository)
+		setupMocks     func(*repositories.MockUserRepository)
 		expectedStatus int
 	}{
 		{
@@ -365,7 +287,7 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 				FullName:     "Updated User",
 				TelegramUser: "updated_tg",
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				existingUser := &models.User{
 					Username:       "testuser",
 					Email:          "test@example.com",
@@ -388,7 +310,7 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 			requestBody: UpdateProfileRequest{
 				TelegramUser: "taken_tg",
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				existingUser := &models.User{
 					TelegramUser: "old_tg",
 				}
@@ -408,7 +330,7 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 			requestBody: UpdateProfileRequest{
 				TelegramUser: "abc", // too short
 			},
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				existingUser := &models.User{
 					TelegramUser: "old_tg",
 				}
@@ -421,7 +343,7 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockUserRepository)
+			mockRepo := new(repositories.MockUserRepository)
 			tt.setupMocks(mockRepo)
 
 			handler := NewUserHandler(mockRepo)
@@ -445,13 +367,13 @@ func TestUserHandler_GetUser(t *testing.T) {
 	tests := []struct {
 		name           string
 		path           string
-		setupMocks     func(*MockUserRepository)
+		setupMocks     func(*repositories.MockUserRepository)
 		expectedStatus int
 	}{
 		{
 			name: "successful user retrieval",
 			path: "/users/1",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				user := &models.User{
 					Username: "testuser",
 					FullName: "Test User",
@@ -464,13 +386,13 @@ func TestUserHandler_GetUser(t *testing.T) {
 		{
 			name:           "invalid user ID",
 			path:           "/users/invalid",
-			setupMocks:     func(m *MockUserRepository) {},
+			setupMocks:     func(m *repositories.MockUserRepository) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "user not found",
 			path: "/users/999",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("GetUserByID", 999).Return(nil, sql.ErrNoRows)
 			},
 			expectedStatus: http.StatusNotFound,
@@ -479,7 +401,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockUserRepository)
+			mockRepo := new(repositories.MockUserRepository)
 			tt.setupMocks(mockRepo)
 
 			handler := NewUserHandler(mockRepo)
@@ -498,12 +420,12 @@ func TestUserHandler_GetUser(t *testing.T) {
 func TestUserHandler_GetAllUsers(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMocks     func(*MockUserRepository)
+		setupMocks     func(*repositories.MockUserRepository)
 		expectedStatus int
 	}{
 		{
 			name: "successful users retrieval",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				user1 := models.User{
 					Username: "user1",
 					FullName: "User One",
@@ -519,14 +441,13 @@ func TestUserHandler_GetAllUsers(t *testing.T) {
 				user2.BaseModel.ID = 2
 
 				users := []models.User{user1, user2}
-				// Use mock.Anything to accept any context type
 				m.On("GetAllUsers", mock.Anything).Return(users, nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name: "database error",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("GetAllUsers", mock.Anything).Return(nil, fmt.Errorf("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
@@ -535,7 +456,7 @@ func TestUserHandler_GetAllUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockUserRepository)
+			mockRepo := new(repositories.MockUserRepository)
 			tt.setupMocks(mockRepo)
 
 			handler := NewUserHandler(mockRepo)
@@ -555,13 +476,13 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 	tests := []struct {
 		name           string
 		path           string
-		setupMocks     func(*MockUserRepository)
+		setupMocks     func(*repositories.MockUserRepository)
 		expectedStatus int
 	}{
 		{
 			name: "successful user deletion",
 			path: "/users/1",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("DeleteUser", 1).Return(nil)
 			},
 			expectedStatus: http.StatusOK,
@@ -569,13 +490,13 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 		{
 			name:           "invalid user ID",
 			path:           "/users/invalid",
-			setupMocks:     func(m *MockUserRepository) {},
+			setupMocks:     func(m *repositories.MockUserRepository) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "user not found",
 			path: "/users/999",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("DeleteUser", 999).Return(sql.ErrNoRows)
 			},
 			expectedStatus: http.StatusNotFound,
@@ -583,7 +504,7 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 		{
 			name: "database error",
 			path: "/users/1",
-			setupMocks: func(m *MockUserRepository) {
+			setupMocks: func(m *repositories.MockUserRepository) {
 				m.On("DeleteUser", 1).Return(fmt.Errorf("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
@@ -592,7 +513,7 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockUserRepository)
+			mockRepo := new(repositories.MockUserRepository)
 			tt.setupMocks(mockRepo)
 
 			handler := NewUserHandler(mockRepo)
