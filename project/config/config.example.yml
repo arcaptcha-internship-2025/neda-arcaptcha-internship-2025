@@ -10,6 +10,6 @@ postgres:
   dbname: apartment_db
 
 telegram_config:
-  bot_token: ""
+  bot_token: "your_bot_token_here"
   timeout: 30s
   maxconnections: 5  

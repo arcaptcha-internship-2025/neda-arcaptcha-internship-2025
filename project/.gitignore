@@ -1,0 +1,15 @@
+# Ignore config files (contains sensitive data)
+config.yml
+
+# Ignore IDE/Editor files (optional)
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore build/binaries (optional)
+bin/
+dist/
+
+# Ignore log files (optional)
+*.log
