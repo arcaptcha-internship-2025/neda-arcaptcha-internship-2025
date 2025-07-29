@@ -1,0 +1,4 @@
+telegram_config:
+  bot_token: ""
+  timeout: 30s
+  maxconnections: 5

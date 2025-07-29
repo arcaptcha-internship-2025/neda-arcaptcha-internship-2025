@@ -8,8 +8,3 @@ postgres:
   user: postgres
   password: password
   dbname: apartment_db
-
-telegram_config:
-  bot_token: ""
-  timeout: 30s
-  maxconnections: 5
