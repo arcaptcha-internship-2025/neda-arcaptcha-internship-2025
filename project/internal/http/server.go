@@ -38,6 +38,7 @@ type ApartmantService struct {
 	billHandler         *handlers.BillHandler
 	userService         services.UserService
 	apartmentService    services.ApartmentService
+	billService         services.BillService
 	notificationService notification.Notification
 	imageService        image.Image
 	paymentService      payment.Payment
@@ -69,11 +70,7 @@ func NewApartmantService(
 		notificationService,
 		cfg.Server.AppBaseURL,
 	)
-
-	userHandler := handlers.NewUserHandler(userService)
-	apartmentHandler := handlers.NewApartmentHandler(apartmentService)
-
-	billHandler := handlers.NewBillHandler(
+	billService := services.NewBillService(
 		billRepo,
 		userRepo,
 		apartmentRepo,
@@ -83,6 +80,10 @@ func NewApartmantService(
 		paymentService,
 		notificationService,
 	)
+
+	userHandler := handlers.NewUserHandler(userService)
+	apartmentHandler := handlers.NewApartmentHandler(apartmentService)
+	billHandler := handlers.NewBillHandler(billService)
 
 	return &ApartmantService{
 		cfg:                 cfg,
@@ -96,6 +97,7 @@ func NewApartmantService(
 		billHandler:         billHandler,
 		userService:         userService,
 		apartmentService:    apartmentService,
+		billService:         billService,
 		notificationService: notificationService,
 		imageService:        imageService,
 		paymentService:      paymentService,

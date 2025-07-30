@@ -15,11 +15,11 @@ const (
         bill_type VARCHAR(50) NOT NULL,
         total_amount DECIMAL(10,2) NOT NULL,
         due_date DATE NOT NULL,
-        billing_deadline DATE NOT NULL,
+        billing_deadline DATE,
         description TEXT,
-        Image_url VARCHAR(2000),
+        image_url VARCHAR(2000),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
 )
 
@@ -28,9 +28,10 @@ type BillRepository interface {
 	GetBillByID(id int) (*models.Bill, error)
 	GetBillsByApartmentID(apartmentID int) ([]models.Bill, error)
 	UpdateBill(ctx context.Context, bill models.Bill) error
-	DeleteBill(id int)
+	DeleteBill(id int) error
 	GetPaymentByBillAndUser(billID, userID int) (*models.Payment, error)
 }
+
 type billRepositoryImpl struct {
 	db *sqlx.DB
 }
@@ -102,12 +103,10 @@ func (r *billRepositoryImpl) UpdateBill(ctx context.Context, bill models.Bill) e
 	return err
 }
 
-func (r *billRepositoryImpl) DeleteBill(id int) {
+func (r *billRepositoryImpl) DeleteBill(id int) error {
 	query := `DELETE FROM bills WHERE id = $1`
 	_, err := r.db.Exec(query, id)
-	if err != nil {
-		return
-	}
+	return err
 }
 
 func (r *billRepositoryImpl) GetPaymentByBillAndUser(billID, userID int) (*models.Payment, error) {
