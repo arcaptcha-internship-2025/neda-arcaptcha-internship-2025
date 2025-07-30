@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/dto"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/utils"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
@@ -17,44 +18,6 @@ import (
 
 type UserHandler struct {
 	userRepo repositories.UserRepository
-}
-
-type CreateUserRequest struct {
-	Username     string          `json:"username"`
-	Password     string          `json:"password"`
-	Email        string          `json:"email"`
-	Phone        string          `json:"phone"`
-	FullName     string          `json:"full_name"`
-	UserType     models.UserType `json:"user_type"`
-	TelegramUser string          `json:"telegram_user"`
-}
-
-type UpdateProfileRequest struct {
-	Username     string `json:"username"`
-	Email        string `json:"email"`
-	Phone        string `json:"phone"`
-	FullName     string `json:"full_name"`
-	TelegramUser string `json:"telegram_user"`
-}
-
-type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type LoginResponse struct {
-	Token    string       `json:"token"`
-	UserID   string       `json:"user_id"`
-	UserType string       `json:"user_type"`
-	Username string       `json:"username"`
-	Email    string       `json:"email"`
-	FullName string       `json:"full_name"`
-	Telegram TelegramInfo `json:"telegram"`
-}
-
-type TelegramInfo struct {
-	Username  string `json:"username"`
-	Connected bool   `json:"connected"`
 }
 
 func NewUserHandler(userRepo repositories.UserRepository) *UserHandler {
@@ -78,7 +41,7 @@ func (h *UserHandler) getCurrentUserID(r *http.Request) (int, error) {
 }
 
 func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
-	var req CreateUserRequest
+	var req dto.CreateUserRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -166,15 +129,16 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		"telegram_setup_required": req.TelegramUser != "",
 	}
 
+	//add bot address to this message
 	if req.TelegramUser != "" {
-		responseData["telegram_setup_instructions"] = "Please start a chat with our bot in Telegram to complete setup"
+		responseData["telegram_setup_instructions"] = "Please start a chat with our bot in Telegram to complete setup : "
 	}
 
 	utils.WriteSuccessResponse(w, "user created successfully", responseData)
 }
 
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
+	var req dto.LoginRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -208,14 +172,14 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := LoginResponse{
+	response := dto.LoginResponse{
 		Token:    token,
 		UserID:   strconv.Itoa(existingUser.ID),
 		UserType: string(existingUser.UserType),
 		Username: existingUser.Username,
 		Email:    existingUser.Email,
 		FullName: existingUser.FullName,
-		Telegram: TelegramInfo{
+		Telegram: dto.TelegramInfo{
 			Username:  existingUser.TelegramUser,
 			Connected: existingUser.TelegramChatID != 0,
 		},
@@ -260,7 +224,7 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req UpdateProfileRequest
+	var req dto.UpdateProfileRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid request body")
 		return

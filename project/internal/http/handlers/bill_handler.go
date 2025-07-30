@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/dto"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/image"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
@@ -49,24 +50,6 @@ func NewBillHandler(
 	}
 }
 
-type CreateBillRequest struct {
-	BillType        models.BillType `json:"bill_type"`
-	TotalAmount     float64         `json:"total_amount"`
-	DueDate         string          `json:"due_date"`
-	BillingDeadline string          `json:"billing_deadline"`
-	Description     string          `json:"description"`
-}
-
-type PayBillsRequest struct {
-	BillIDs []int `json:"bill_ids"`
-}
-
-type BatchPaymentRequest struct {
-	UserID  int     `json:"user_id"`
-	BillIDs []int   `json:"bill_ids"`
-	Amount  float64 `json:"total_amount"`
-}
-
 func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 	apartmentIDStr := r.PathValue("apartment-id")
 	apartmentID, err := strconv.Atoi(apartmentIDStr)
@@ -97,7 +80,7 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req CreateBillRequest
+	var req dto.CreateBillRequest
 	req.BillType = models.BillType(r.FormValue("bill_type"))
 	req.TotalAmount, _ = strconv.ParseFloat(r.FormValue("total_amount"), 64)
 	req.DueDate = r.FormValue("due_date")
@@ -321,7 +304,7 @@ func (h *BillHandler) PayBills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req PayBillsRequest
+	var req dto.PayBillsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -356,7 +339,7 @@ func (h *BillHandler) PayBatchBills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req BatchPaymentRequest
+	var req dto.BatchPaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
