@@ -37,6 +37,7 @@ type ApartmantService struct {
 	apartmentHandler    *handlers.ApartmentHandler
 	billHandler         *handlers.BillHandler
 	userService         services.UserService
+	apartmentService    services.ApartmentService
 	notificationService notification.Notification
 	imageService        image.Image
 	paymentService      payment.Payment
@@ -60,11 +61,7 @@ func NewApartmantService(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	userService := services.NewUserService(userRepo)
-
-	//creating handlers with services instead of repositories
-	userHandler := handlers.NewUserHandler(userService)
-
-	apartmentHandler := handlers.NewApartmentHandler(
+	apartmentService := services.NewApartmentService(
 		apartmentRepo,
 		userRepo,
 		userApartmentRepo,
@@ -72,6 +69,9 @@ func NewApartmantService(
 		notificationService,
 		cfg.Server.AppBaseURL,
 	)
+
+	userHandler := handlers.NewUserHandler(userService)
+	apartmentHandler := handlers.NewApartmentHandler(apartmentService)
 
 	billHandler := handlers.NewBillHandler(
 		billRepo,
@@ -95,6 +95,7 @@ func NewApartmantService(
 		apartmentHandler:    apartmentHandler,
 		billHandler:         billHandler,
 		userService:         userService,
+		apartmentService:    apartmentService,
 		notificationService: notificationService,
 		imageService:        imageService,
 		paymentService:      paymentService,
