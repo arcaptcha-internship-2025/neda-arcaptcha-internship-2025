@@ -20,6 +20,7 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/payment"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
 	goredis "github.com/redis/go-redis/v9"
 )
 
@@ -35,6 +36,7 @@ type ApartmantService struct {
 	userHandler         *handlers.UserHandler
 	apartmentHandler    *handlers.ApartmentHandler
 	billHandler         *handlers.BillHandler
+	userService         services.UserService
 	notificationService notification.Notification
 	imageService        image.Image
 	paymentService      payment.Payment
@@ -57,7 +59,10 @@ func NewApartmantService(
 ) *ApartmantService {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	userHandler := handlers.NewUserHandler(userRepo)
+	userService := services.NewUserService(userRepo)
+
+	//creating handlers with services instead of repositories
+	userHandler := handlers.NewUserHandler(userService)
 
 	apartmentHandler := handlers.NewApartmentHandler(
 		apartmentRepo,
@@ -89,6 +94,7 @@ func NewApartmantService(
 		userHandler:         userHandler,
 		apartmentHandler:    apartmentHandler,
 		billHandler:         billHandler,
+		userService:         userService,
 		notificationService: notificationService,
 		imageService:        imageService,
 		paymentService:      paymentService,

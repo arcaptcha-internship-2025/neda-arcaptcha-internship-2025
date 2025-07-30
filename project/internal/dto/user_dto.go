@@ -12,6 +12,11 @@ type CreateUserRequest struct {
 	TelegramUser string          `json:"telegram_user"`
 }
 
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type UpdateProfileRequest struct {
 	Username     string `json:"username"`
 	Email        string `json:"email"`
@@ -20,9 +25,26 @@ type UpdateProfileRequest struct {
 	TelegramUser string `json:"telegram_user"`
 }
 
-type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+type UserInfo struct {
+	ID           int             `json:"id"`
+	Username     string          `json:"username"`
+	Email        string          `json:"email"`
+	Phone        string          `json:"phone"`
+	FullName     string          `json:"full_name"`
+	UserType     models.UserType `json:"user_type"`
+	TelegramUser string          `json:"telegram_user"`
+}
+
+type TelegramInfo struct {
+	Username  string `json:"username"`
+	Connected bool   `json:"connected"`
+}
+
+type SignUpResponse struct {
+	User                      UserInfo `json:"user"`
+	Token                     string   `json:"token"`
+	TelegramSetupRequired     bool     `json:"telegram_setup_required"`
+	TelegramSetupInstructions string   `json:"telegram_setup_instructions,omitempty"`
 }
 
 type LoginResponse struct {
@@ -35,7 +57,19 @@ type LoginResponse struct {
 	Telegram TelegramInfo `json:"telegram"`
 }
 
-type TelegramInfo struct {
-	Username  string `json:"username"`
-	Connected bool   `json:"connected"`
+type ProfileResponse struct {
+	ID       int             `json:"id"`
+	Username string          `json:"username"`
+	Email    string          `json:"email"`
+	Phone    string          `json:"phone"`
+	FullName string          `json:"full_name"`
+	UserType models.UserType `json:"user_type"`
+	Telegram TelegramInfo    `json:"telegram"`
+}
+
+type PublicUserResponse struct {
+	ID       int             `json:"id"`
+	Username string          `json:"username"`
+	FullName string          `json:"full_name"`
+	UserType models.UserType `json:"user_type,omitempty"`
 }
