@@ -28,7 +28,7 @@ type imageImpl struct {
 func NewImage(minioEndpoint, accessKey, secretKey, bucket string) Image {
 	minioClient, err := minio.New(minioEndpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: true,
+		Secure: false,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create MinIO client: %v", err)

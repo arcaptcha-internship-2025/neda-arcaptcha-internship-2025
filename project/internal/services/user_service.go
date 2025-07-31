@@ -80,11 +80,6 @@ func (s *userServiceImpl) CreateUser(ctx context.Context, req dto.CreateUserRequ
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	token, err := middleware.GenerateToken(strconv.Itoa(userID), user.UserType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate token: %w", err)
-	}
-
 	response := &dto.SignUpResponse{
 		User: dto.UserInfo{
 			ID:           userID,
@@ -95,7 +90,6 @@ func (s *userServiceImpl) CreateUser(ctx context.Context, req dto.CreateUserRequ
 			UserType:     user.UserType,
 			TelegramUser: user.TelegramUser,
 		},
-		Token:                     token,
 		TelegramSetupRequired:     req.TelegramUser != "",
 		TelegramSetupInstructions: "",
 	}

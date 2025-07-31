@@ -95,6 +95,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	response, err := h.userService.AuthenticateUser(r.Context(), req)
 	if err != nil {
+		fmt.Println(err)
 		if err.Error() == "invalid username or password" {
 			utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid username or password")
 		} else {

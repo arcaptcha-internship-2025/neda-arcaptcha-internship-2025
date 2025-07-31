@@ -68,7 +68,7 @@ func (h *ApartmentHandler) GetApartmentByID(w http.ResponseWriter, r *http.Reque
 
 func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	apartmentID, err := strconv.Atoi(vars["apartment-id"])
+	apartmentID, err := strconv.Atoi(vars["apartmentId"])
 	if err != nil {
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
@@ -147,13 +147,13 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 
 func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	apartmentID, err := strconv.Atoi(vars["apartment-id"])
+	apartmentID, err := strconv.Atoi(vars["apartmentId"])
 	if err != nil {
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
 	}
 
-	telegramUsername := vars["telegram-username"]
+	telegramUsername := vars["telegramUsername"]
 	if telegramUsername == "" {
 		http.Error(w, "Telegram username is required", http.StatusBadRequest)
 		return

@@ -19,7 +19,7 @@ const (
         full_name VARCHAR(100) NOT NULL,
         user_type VARCHAR(20) NOT NULL,
         telegram_user VARCHAR(100) UNIQUE,
-        telegram_chat_id BIGINT,
+        telegram_chat_id BIGINT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`

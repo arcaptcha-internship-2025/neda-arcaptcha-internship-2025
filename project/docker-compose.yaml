@@ -15,7 +15,7 @@ services:
 
 
   redis:
-    image: redis:7
+    image: redis
     container_name: redis
     ports:
       - "6379:6379"
@@ -23,7 +23,7 @@ services:
       - redis_data:/data
 
   postgres:
-    image: postgres:16
+    image: postgres
     container_name: postgres
     environment:
       POSTGRES_USER: user

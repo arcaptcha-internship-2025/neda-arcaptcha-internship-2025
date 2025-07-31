@@ -48,13 +48,13 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/delete", s.methodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.apartmentHandler.DeleteApartment,
 	}))
-	managerRoutes.HandleFunc("/apartment/{apartment-id}/residents", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/{apartmentId}/residents", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetResidentsInApartment,
 	}))
-	managerRoutes.HandleFunc("/apartment/{apartment-id}/invite/resident/{telegram-username}", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/{apartmentId}/invite/resident/{telegramUsername}", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
-	managerRoutes.HandleFunc("/bill/{apartment-id}/create", utils.MethodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/bill/{apartmentId}/create", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.billHandler.CreateBill,
 	}))
 	managerRoutes.HandleFunc("/bill/get", utils.MethodHandler(map[string]http.HandlerFunc{

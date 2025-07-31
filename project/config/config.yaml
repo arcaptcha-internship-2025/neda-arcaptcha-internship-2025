@@ -1,15 +1,27 @@
 server:
-  port: :8080
-  app_base_url: "http://localhost"
+  port: ":8080"
+  app_base_url: "http://localhost:8080"
 
 postgres:
-  host: localhost
+  host: "postgres"
   port: 5432
-  user: postgres
-  password: password
-  dbname: apartment_db
+  username: "user"
+  password: "password"
+  database: "appdb"
+  autocreate: true
+
+minio:
+  endpoint: "minio:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "mybucket"
+
+redis:
+  address: "redis:6379"
+  password: ""
+  db: 0
 
 telegram_config:
-  bot_token: ""
+  bot_token: "8238625925:AAFn0ObA-dtgo2J28P0INX5u176fTa7h1cA"
   timeout: 30s
-  maxconnections: 5  
+  max_connections: 5
