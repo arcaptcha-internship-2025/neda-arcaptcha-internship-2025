@@ -1,18 +1,29 @@
 version: '3.8'
-
 services:
   apartment:
     image: apartment
     container_name: apartment
     ports:
       - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
+    restart: on-failure
+    dns:
+      - 127.0.0.11  
+      - 8.8.8.8     
+      - 8.8.4.4     
+    dns_opt:
+      - use-vc
+      - no-tld-query
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
 
   redis:
     image: redis
@@ -33,6 +44,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d appdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   minio:
     image: minio/minio
