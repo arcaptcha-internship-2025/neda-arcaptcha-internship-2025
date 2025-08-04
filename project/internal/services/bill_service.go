@@ -21,7 +21,7 @@ type BillService interface {
 	CreateBill(ctx context.Context, userID, apartmentID int, req dto.CreateBillRequest, file io.ReadCloser, handler *multipart.FileHeader) (map[string]interface{}, error)
 	GetBillByID(ctx context.Context, id int) (map[string]interface{}, error)
 	GetBillsByApartmentID(ctx context.Context, apartmentID int) ([]models.Bill, error)
-	UpdateBill(ctx context.Context, id, apartmentID int, billType string, totalAmount float64, dueDate, billingDeadline, description, imageURL string) error
+	UpdateBill(ctx context.Context, id, apartmentID int, billType string, totalAmount float64, dueDate, billingDeadline, description string) error
 	DeleteBill(ctx context.Context, id int) error
 	PayBills(ctx context.Context, userID int, billIDs []int) error
 	PayBatchBills(ctx context.Context, userID int, billIDs []int) (map[string]interface{}, error)
@@ -225,7 +225,7 @@ func (s *billServiceImpl) GetBillsByApartmentID(ctx context.Context, apartmentID
 	return bills, nil
 }
 
-func (s *billServiceImpl) UpdateBill(ctx context.Context, id, apartmentID int, billType string, totalAmount float64, dueDate, billingDeadline, description, imageURL string) error {
+func (s *billServiceImpl) UpdateBill(ctx context.Context, id, apartmentID int, billType string, totalAmount float64, dueDate, billingDeadline, description string) error {
 	bill := models.Bill{
 		BaseModel: models.BaseModel{
 			ID:        id,
@@ -237,7 +237,6 @@ func (s *billServiceImpl) UpdateBill(ctx context.Context, id, apartmentID int, b
 		DueDate:         dueDate,
 		BillingDeadline: billingDeadline,
 		Description:     description,
-		ImageURL:        imageURL,
 	}
 
 	if err := s.repo.UpdateBill(ctx, bill); err != nil {

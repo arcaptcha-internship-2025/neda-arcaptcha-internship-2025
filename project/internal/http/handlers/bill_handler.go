@@ -107,15 +107,14 @@ func (h *BillHandler) UpdateBill(w http.ResponseWriter, r *http.Request) {
 		DueDate         string  `json:"due_date"`
 		BillingDeadline string  `json:"billing_deadline"`
 		Description     string  `json:"description"`
-		ImageURL        string  `json:"image_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.billService.UpdateBill(r.Context(), req.ID, req.ApartmentID, req.BillType, req.TotalAmount, req.DueDate, req.BillingDeadline, req.Description, req.ImageURL); err != nil {
-		http.Error(w, "Failed to update bill: "+err.Error(), http.StatusInternalServerError)
+	if err := h.billService.UpdateBill(r.Context(), req.ID, req.ApartmentID, req.BillType, req.TotalAmount, req.DueDate, req.BillingDeadline, req.Description); err != nil {
+		http.Error(w, "Failed to update bill", http.StatusInternalServerError)
 		return
 	}
 

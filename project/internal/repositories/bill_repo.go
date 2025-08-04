@@ -89,8 +89,8 @@ func (r *billRepositoryImpl) UpdateBill(ctx context.Context, bill models.Bill) e
 	query := `UPDATE bills
 				SET apartment_id = $1, bill_type = $2, total_amount = $3,
 				due_date = $4, billing_deadline = $5, description = $6,
-				image_url = $7, updated_at = CURRENT_TIMESTAMP
-				WHERE id = $8`
+				updated_at = CURRENT_TIMESTAMP
+				WHERE id = $7`
 	_, err := r.db.ExecContext(ctx, query,
 		bill.ApartmentID,
 		bill.BillType,
