@@ -24,4 +24,4 @@ redis:
 telegram_config:
   bot_token: "8238625925:AAFn0ObA-dtgo2J28P0INX5u176fTa7h1cA"
   timeout: 120s
-  max_connections: 5
+  bot_address: "@apartment_arcaptchabot"

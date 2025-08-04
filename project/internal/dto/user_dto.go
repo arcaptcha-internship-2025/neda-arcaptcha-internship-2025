@@ -42,7 +42,6 @@ type TelegramInfo struct {
 
 type SignUpResponse struct {
 	User                      UserInfo `json:"user"`
-	Token                     string   `json:"token"`
 	TelegramSetupRequired     bool     `json:"telegram_setup_required"`
 	TelegramSetupInstructions string   `json:"telegram_setup_instructions,omitempty"`
 }

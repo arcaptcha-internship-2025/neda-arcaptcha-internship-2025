@@ -246,9 +246,21 @@ func (s *billServiceImpl) UpdateBill(ctx context.Context, id, apartmentID int, b
 }
 
 func (s *billServiceImpl) DeleteBill(ctx context.Context, id int) error {
+	bill, err := s.repo.GetBillByID(id)
+	if err != nil {
+		return fmt.Errorf("failed to get bill: %w", err)
+	}
+
 	if err := s.repo.DeleteBill(id); err != nil {
 		return fmt.Errorf("failed to delete bill: %w", err)
 	}
+	if bill.ImageURL != "" {
+		if err := s.imageService.DeleteImage(ctx, bill.ImageURL); err != nil {
+			log.Printf("Failed to delete image for bill %d: %v", id, err)
+
+		}
+	}
+
 	return nil
 }
 

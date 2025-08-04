@@ -81,7 +81,7 @@ func NewApartmantService(
 		notificationService,
 	)
 
-	userHandler := handlers.NewUserHandler(userService)
+	userHandler := handlers.NewUserHandler(userService, cfg.TelegramConfig.BotAddress)
 	apartmentHandler := handlers.NewApartmentHandler(apartmentService)
 	billHandler := handlers.NewBillHandler(billService)
 

@@ -14,11 +14,13 @@ import (
 
 type UserHandler struct {
 	userService services.UserService
+	botAddress  string
 }
 
-func NewUserHandler(userService services.UserService) *UserHandler {
+func NewUserHandler(userService services.UserService, botAddress string) *UserHandler {
 	return &UserHandler{
 		userService: userService,
+		botAddress:  botAddress,
 	}
 }
 
@@ -52,7 +54,7 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//calling service
-	response, err := h.userService.CreateUser(r.Context(), req)
+	response, err := h.userService.CreateUser(r.Context(), req, h.botAddress)
 	if err != nil {
 		log.WithError(err).Error("failed to create user")
 		switch err.Error() {

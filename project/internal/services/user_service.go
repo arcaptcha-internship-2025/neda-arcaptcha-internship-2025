@@ -14,7 +14,7 @@ import (
 )
 
 type UserService interface {
-	CreateUser(ctx context.Context, req dto.CreateUserRequest) (*dto.SignUpResponse, error)
+	CreateUser(ctx context.Context, req dto.CreateUserRequest, botAddress string) (*dto.SignUpResponse, error)
 	AuthenticateUser(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error)
 	GetUserProfile(ctx context.Context, userID int) (*dto.ProfileResponse, error)
 	UpdateUserProfile(ctx context.Context, userID int, req dto.UpdateProfileRequest) (*dto.ProfileResponse, error)
@@ -33,7 +33,7 @@ func NewUserService(userRepo repositories.UserRepository) UserService {
 	}
 }
 
-func (s *userServiceImpl) CreateUser(ctx context.Context, req dto.CreateUserRequest) (*dto.SignUpResponse, error) {
+func (s *userServiceImpl) CreateUser(ctx context.Context, req dto.CreateUserRequest, botAddress string) (*dto.SignUpResponse, error) {
 	if req.UserType != models.Manager && req.UserType != models.Resident {
 		return nil, fmt.Errorf("invalid user type")
 	}
@@ -56,7 +56,7 @@ func (s *userServiceImpl) CreateUser(ctx context.Context, req dto.CreateUserRequ
 			return nil, fmt.Errorf("failed to check Telegram username: %w", err)
 		}
 		if existingTelegramUser != nil {
-			return nil, fmt.Errorf("Telegram username already in use")
+			return nil, fmt.Errorf("telegram username already in use")
 		}
 	}
 
@@ -96,7 +96,7 @@ func (s *userServiceImpl) CreateUser(ctx context.Context, req dto.CreateUserRequ
 
 	//add bot address hereeeeee
 	if req.TelegramUser != "" {
-		response.TelegramSetupInstructions = "Please start a chat with our bot in Telegram to complete setup : "
+		response.TelegramSetupInstructions = "Please start a chat with our bot in Telegram to complete setup : " + botAddress
 	}
 
 	return response, nil
@@ -174,7 +174,7 @@ func (s *userServiceImpl) UpdateUserProfile(ctx context.Context, userID int, req
 			return nil, fmt.Errorf("failed to check Telegram username: %w", err)
 		}
 		if existingTelegramUser != nil && existingTelegramUser.ID != userID {
-			return nil, fmt.Errorf("Telegram username already in use")
+			return nil, fmt.Errorf("telegram username already in use")
 		}
 	}
 

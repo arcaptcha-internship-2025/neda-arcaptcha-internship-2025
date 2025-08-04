@@ -9,6 +9,7 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
+	"github.com/sirupsen/logrus"
 )
 
 type BillHandler struct {
@@ -130,10 +131,10 @@ func (h *BillHandler) DeleteBill(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.billService.DeleteBill(r.Context(), id); err != nil {
-		http.Error(w, "Failed to delete bill: "+err.Error(), http.StatusInternalServerError)
+		logrus.Error("Failed to delete bill:", err)
+		http.Error(w, "Failed to delete bill", http.StatusInternalServerError)
 		return
 	}
-
 	w.WriteHeader(http.StatusOK)
 }
 

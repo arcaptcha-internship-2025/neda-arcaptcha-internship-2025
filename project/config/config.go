@@ -43,9 +43,9 @@ type Redis struct {
 }
 
 type TelegramConfig struct {
-	BotToken       string        `yaml:"bot_token"`
-	Timeout        time.Duration `yaml:"timeout"`
-	MaxConnections int           `yaml:"max_connections"` // max simultaneous connections
+	BotToken   string        `yaml:"bot_token"`
+	Timeout    time.Duration `yaml:"timeout"`
+	BotAddress string        `yaml:"bot_address"`
 }
 
 func InitConfig(filename string) (*Config, error) {
