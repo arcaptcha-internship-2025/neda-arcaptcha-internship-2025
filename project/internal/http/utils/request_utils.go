@@ -2,24 +2,12 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
-
-func ParseIDFromPath(path string) (int, error) {
-	parts := strings.Split(strings.TrimSuffix(path, "/"), "/")
-	if len(parts) == 0 {
-		return 0, fmt.Errorf("invalid path")
-	}
-
-	idStr := parts[len(parts)-1]
-	return strconv.Atoi(idStr)
-}
 
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 	if err := json.NewDecoder(r.Body).Decode(&dst); err != nil {

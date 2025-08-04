@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/utils"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
 )
 
@@ -69,8 +69,8 @@ func (h *ApartmentHandler) GetApartmentByID(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	apartmentID, err := strconv.Atoi(vars["apartmentId"])
+	apartmentIDStr := r.PathValue("apartment_id")
+	apartmentID, err := strconv.Atoi(apartmentIDStr)
 	if err != nil {
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
@@ -90,10 +90,10 @@ func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *htt
 }
 
 func (h *ApartmentHandler) GetAllApartmentsForResident(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	residentID, err := strconv.Atoi(vars["userID"])
+	residentIDStr := r.PathValue("user_id")
+	residentID, err := strconv.Atoi(residentIDStr)
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
@@ -148,14 +148,14 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	apartmentID, err := strconv.Atoi(vars["apartmentId"])
+	apartmentIDStr := r.PathValue("apartment_id")
+	apartmentID, err := strconv.Atoi(apartmentIDStr)
 	if err != nil {
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
 	}
 
-	telegramUsername := vars["telegramUsername"]
+	telegramUsername := r.PathValue("apartment_id")
 	if telegramUsername == "" {
 		http.Error(w, "Telegram username is required", http.StatusBadRequest)
 		return

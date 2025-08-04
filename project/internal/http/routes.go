@@ -26,10 +26,10 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/user/get-all", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.userHandler.GetAllUsers,
 	}))
-	managerRoutes.HandleFunc("/user/get/{userID}", utils.MethodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/user/get/{user_id}", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.userHandler.GetUser,
 	}))
-	managerRoutes.HandleFunc("/user/delete/{userID}", utils.MethodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/user/delete/{user_id}", utils.MethodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.userHandler.DeleteUser,
 	}))
 
@@ -39,7 +39,7 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/get", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetApartmentByID,
 	}))
-	managerRoutes.HandleFunc("/apartments/get-all/resident/{userID}", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartments/get-all/resident/{user_id}", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetAllApartmentsForResident,
 	}))
 	managerRoutes.HandleFunc("/apartment/update", s.methodHandler(map[string]http.HandlerFunc{
@@ -48,13 +48,13 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/apartment/delete", s.methodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.apartmentHandler.DeleteApartment,
 	}))
-	managerRoutes.HandleFunc("/apartment/{apartmentId}/residents", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/{apartment_id}/residents", s.methodHandler(map[string]http.HandlerFunc{
 		"GET": s.apartmentHandler.GetResidentsInApartment,
 	}))
-	managerRoutes.HandleFunc("/apartment/{apartmentId}/invite/resident/{telegramUsername}", s.methodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/apartment/{apartment_id}/invite/resident/{telegram_username}", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.InviteUserToApartment,
 	}))
-	managerRoutes.HandleFunc("/bill/{apartmentId}/create", utils.MethodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/bill/{apartment_id}/create", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.billHandler.CreateBill,
 	}))
 	managerRoutes.HandleFunc("/bill/get", utils.MethodHandler(map[string]http.HandlerFunc{

@@ -22,7 +22,7 @@ func NewBillHandler(billService services.BillService) *BillHandler {
 }
 
 func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
-	apartmentIDStr := r.PathValue("apartmentId")
+	apartmentIDStr := r.PathValue("apartment_id")
 	apartmentID, err := strconv.Atoi(apartmentIDStr)
 	if err != nil {
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)

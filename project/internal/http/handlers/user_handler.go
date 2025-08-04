@@ -157,7 +157,8 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
-	userID, err := utils.ParseIDFromPath(r.URL.Path)
+	userIDStr := r.PathValue("user_id")
+	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid user ID")
 		return
@@ -183,7 +184,8 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	userID, err := utils.ParseIDFromPath(r.URL.Path)
+	userIDStr := r.PathValue("user_id")
+	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid user ID")
 		return
