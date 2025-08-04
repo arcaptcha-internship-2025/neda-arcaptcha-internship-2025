@@ -26,10 +26,10 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/user/get-all", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.userHandler.GetAllUsers,
 	}))
-	managerRoutes.HandleFunc("/user/get", utils.MethodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/user/get/{userID}", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.userHandler.GetUser,
 	}))
-	managerRoutes.HandleFunc("/user/delete", utils.MethodHandler(map[string]http.HandlerFunc{
+	managerRoutes.HandleFunc("/user/delete/{userID}", utils.MethodHandler(map[string]http.HandlerFunc{
 		"DELETE": s.userHandler.DeleteUser,
 	}))
 

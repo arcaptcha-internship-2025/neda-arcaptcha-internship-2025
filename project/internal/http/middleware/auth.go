@@ -17,7 +17,7 @@ import (
 
 type contextKey string
 
-const UserIDKey contextKey = "userID"
+const UserIDKey contextKey = "user_id"
 
 type CustomClaims struct {
 	EncryptedUserID string          `json:"uid"`
@@ -102,7 +102,7 @@ func ValidateToken(tokenStr string, userType ...models.UserType) (string, error)
 			}
 		}
 		if !validType {
-			return "", fmt.Errorf("invalid user type, got %s want one of %v", claims.UserType, userType)
+			return "", fmt.Errorf("not authorized for user type: %s", claims.UserType)
 		}
 	}
 

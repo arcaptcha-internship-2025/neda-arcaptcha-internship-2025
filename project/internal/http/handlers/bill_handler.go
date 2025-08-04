@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/dto"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
 )
@@ -28,11 +29,12 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, ok := r.Context().Value("user_id").(int)
+	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
+	userID, _ := strconv.Atoi(userIDString)
 
 	err = r.ParseMultipartForm(32 << 20) // 32 MB max
 	if err != nil {

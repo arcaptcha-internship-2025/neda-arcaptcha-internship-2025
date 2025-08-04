@@ -9,6 +9,7 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/utils"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
+	log "github.com/sirupsen/logrus"
 )
 
 type UserHandler struct {
@@ -53,6 +54,7 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	//calling service
 	response, err := h.userService.CreateUser(r.Context(), req)
 	if err != nil {
+		log.WithError(err).Error("failed to create user")
 		switch err.Error() {
 		case "invalid user type":
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid user type")
@@ -72,8 +74,8 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 			} else {
 				utils.WriteErrorResponse(w, http.StatusInternalServerError, "internal server error")
 			}
+			return
 		}
-		return
 	}
 
 	utils.WriteSuccessResponse(w, "user created successfully", response)
@@ -95,12 +97,12 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	response, err := h.userService.AuthenticateUser(r.Context(), req)
 	if err != nil {
-		fmt.Println(err)
 		if err.Error() == "invalid username or password" {
 			utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid username or password")
 		} else {
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to authenticate user")
 		}
+		log.WithError(err).Error("failed to authenticate user")
 		return
 	}
 

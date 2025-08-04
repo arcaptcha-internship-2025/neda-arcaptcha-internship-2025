@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
 )
 
@@ -30,11 +31,12 @@ func (h *ApartmentHandler) CreateApartment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	userID, ok := r.Context().Value("user_id").(int)
+	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
+	userID, _ := strconv.Atoi(userIDString)
 
 	id, err := h.apartmentService.CreateApartment(r.Context(), userID, request.ApartmentName, request.Address, request.UnitsCount)
 	if err != nil {
@@ -159,11 +161,12 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	userID, ok := r.Context().Value("user_id").(int)
+	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
+	userID, _ := strconv.Atoi(userIDString)
 
 	response, err := h.apartmentService.InviteUserToApartment(r.Context(), userID, apartmentID, telegramUsername)
 	if err != nil {
@@ -183,11 +186,12 @@ func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID, ok := r.Context().Value("user_id").(int)
+	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
+	userID, _ := strconv.Atoi(userIDString)
 
 	response, err := h.apartmentService.JoinApartment(r.Context(), userID, token)
 	if err != nil {
@@ -208,11 +212,12 @@ func (h *ApartmentHandler) LeaveApartment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	userID, ok := r.Context().Value("user_id").(int)
+	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
+	userID, _ := strconv.Atoi(userIDString)
 
 	if err := h.apartmentService.LeaveApartment(r.Context(), userID, apartmentID); err != nil {
 		http.Error(w, "Failed to leave apartment: "+err.Error(), http.StatusInternalServerError)
