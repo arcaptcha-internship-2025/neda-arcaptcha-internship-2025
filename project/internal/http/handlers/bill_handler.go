@@ -63,6 +63,74 @@ func (h *BillHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func (h *BillHandler) DivideBillByType(w http.ResponseWriter, r *http.Request) {
+	billTypeStr := r.PathValue("bill_type")
+	apartmentIDStr := r.PathValue("apartment_id")
+
+	apartmentID, err := strconv.Atoi(apartmentIDStr)
+	if err != nil {
+		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
+		return
+	}
+
+	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
+		return
+	}
+	userID, _ := strconv.Atoi(userIDString)
+
+	validBillTypes := map[string]models.BillType{
+		"water":       models.WaterBill,
+		"electricity": models.ElectricityBill,
+		"gas":         models.GasBill,
+		"maintenance": models.MaintenanceBill,
+		"other":       models.OtherBill,
+	}
+
+	billType, valid := validBillTypes[billTypeStr]
+	if !valid {
+		http.Error(w, "Invalid bill type. Valid types: water, electricity, gas, maintenance, other", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.billService.DivideBillByType(r.Context(), userID, apartmentID, billType)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *BillHandler) DivideAllBills(w http.ResponseWriter, r *http.Request) {
+	apartmentIDStr := r.PathValue("apartment_id")
+	apartmentID, err := strconv.Atoi(apartmentIDStr)
+	if err != nil {
+		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
+		return
+	}
+
+	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
+		return
+	}
+	userID, _ := strconv.Atoi(userIDString)
+
+	response, err := h.billService.DivideAllBills(r.Context(), userID, apartmentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
 func (h *BillHandler) GetBillByID(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)

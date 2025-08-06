@@ -49,6 +49,15 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 	managerRoutes.HandleFunc("/bill/{apartment_id}/create", utils.MethodHandler(map[string]http.HandlerFunc{
 		"POST": s.billHandler.CreateBill,
 	}))
+
+	managerRoutes.HandleFunc("/bills/{apartment_id}/divide/{bill_type}", utils.MethodHandler(map[string]http.HandlerFunc{
+		"POST": s.billHandler.DivideBillByType,
+	}))
+
+	managerRoutes.HandleFunc("/bills/{apartment_id}/divide-all", utils.MethodHandler(map[string]http.HandlerFunc{
+		"POST": s.billHandler.DivideAllBills,
+	}))
+
 	managerRoutes.HandleFunc("/bill", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET":    s.billHandler.GetBillByID,
 		"PUT":    s.billHandler.UpdateBill,

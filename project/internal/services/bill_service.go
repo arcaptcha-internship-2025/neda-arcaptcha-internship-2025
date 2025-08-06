@@ -28,6 +28,8 @@ type BillService interface {
 	GetUnpaidBills(ctx context.Context, userID int) ([]models.Bill, error)
 	GetBillWithPaymentStatus(ctx context.Context, userID, billID int) (map[string]interface{}, error)
 	GetUserPaymentHistory(ctx context.Context, userID int) ([]PaymentHistoryItem, error)
+	DivideBillByType(ctx context.Context, userID, apartmentID int, billType models.BillType) (map[string]interface{}, error)
+	DivideAllBills(ctx context.Context, userID, apartmentID int) (map[string]interface{}, error)
 }
 
 type PaymentHistoryItem struct {
@@ -102,14 +104,6 @@ func (s *billServiceImpl) CreateBill(ctx context.Context, userID, apartmentID in
 		}
 	}
 
-	residents, err := s.userApartmentRepo.GetResidentsInApartment(apartmentID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get residents: %w", err)
-	}
-	if len(residents) == 0 {
-		return nil, fmt.Errorf("no residents found in apartment")
-	}
-
 	var imageKey string
 	if file != nil {
 		fileBytes, err := io.ReadAll(file)
@@ -148,42 +142,192 @@ func (s *billServiceImpl) CreateBill(ctx context.Context, userID, apartmentID in
 		return nil, fmt.Errorf("failed to create bill: %w", err)
 	}
 
-	bill.ID = billID
-	amountPerResident := req.TotalAmount / float64(len(residents))
+	response := map[string]interface{}{
+		"id":             billID,
+		"total_amount":   req.TotalAmount,
+		"image_uploaded": imageKey != "",
+		"status":         "Bill created successfully. Use divide endpoints to create payment records for residents.",
+	}
 
-	var failedPayments []int
-	for _, resident := range residents {
-		payment := models.Payment{
-			BaseModel: models.BaseModel{
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			BillID:        billID,
-			UserID:        resident.ID,
-			Amount:        fmt.Sprintf("%.2f", amountPerResident),
-			PaymentStatus: models.Pending,
-		}
-		_, err := s.paymentRepo.CreatePayment(ctx, payment)
-		if err != nil {
-			log.Printf("Failed to create payment record for user %d: %v", resident.ID, err)
-			failedPayments = append(failedPayments, resident.ID)
-			continue
+	return response, nil
+}
+
+func (s *billServiceImpl) DivideBillByType(ctx context.Context, userID, apartmentID int, billType models.BillType) (map[string]interface{}, error) {
+	isManager, err := s.userApartmentRepo.IsUserManagerOfApartment(ctx, userID, apartmentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify manager status: %w", err)
+	}
+	if !isManager {
+		return nil, fmt.Errorf("only apartment managers can divide bills")
+	}
+
+	// Get current residents
+	residents, err := s.userApartmentRepo.GetResidentsInApartment(apartmentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get residents: %w", err)
+	}
+	if len(residents) == 0 {
+		return nil, fmt.Errorf("no residents found in apartment")
+	}
+
+	//bills of specific type that haven't been divided yet
+	bills, err := s.repo.GetUndividedBillsByTypeAndApartment(apartmentID, billType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bills: %w", err)
+	}
+	if len(bills) == 0 {
+		return nil, fmt.Errorf("no undivided bills of type %s found", billType)
+	}
+
+	var processedBills []int
+	var failedBills []int
+	var totalFailedPayments int
+
+	for _, bill := range bills {
+		amountPerResident := bill.TotalAmount / float64(len(residents))
+		billProcessed := true
+
+		for _, resident := range residents {
+			//checking if payment record already exists
+			existingPayment, _ := s.paymentRepo.GetPaymentByBillAndUser(bill.ID, resident.ID)
+			if existingPayment != nil {
+				continue // if payment record already exists
+			}
+
+			payment := models.Payment{
+				BaseModel: models.BaseModel{
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				},
+				BillID:        bill.ID,
+				UserID:        resident.ID,
+				Amount:        fmt.Sprintf("%.2f", amountPerResident),
+				PaymentStatus: models.Pending,
+			}
+
+			_, err := s.paymentRepo.CreatePayment(ctx, payment)
+			if err != nil {
+				log.Printf("Failed to create payment record for user %d, bill %d: %v", resident.ID, bill.ID, err)
+				totalFailedPayments++
+				billProcessed = false
+				continue
+			}
+
+			//sending notification
+			if err := s.notificationService.SendBillNotification(ctx, resident.ID, bill, amountPerResident); err != nil {
+				log.Printf("Failed to send notification to user %d for bill %d: %v", resident.ID, bill.ID, err)
+			}
 		}
 
-		if err := s.notificationService.SendBillNotification(ctx, resident.ID, bill, amountPerResident); err != nil {
-			log.Printf("Failed to send notification to user %d: %v", resident.ID, err)
+		if billProcessed {
+			processedBills = append(processedBills, bill.ID)
+		} else {
+			failedBills = append(failedBills, bill.ID)
 		}
 	}
 
 	response := map[string]interface{}{
-		"id":                billID,
-		"residents_count":   len(residents),
-		"amount_per_person": amountPerResident,
-		"image_uploaded":    imageKey != "",
+		"bill_type":       billType,
+		"residents_count": len(residents),
+		"processed_bills": processedBills,
+		"processed_count": len(processedBills),
 	}
-	if len(failedPayments) > 0 {
-		response["warning"] = fmt.Sprintf("Failed to create payment records for %d residents", len(failedPayments))
-		response["failed_residents"] = failedPayments
+
+	if len(failedBills) > 0 {
+		response["warning"] = fmt.Sprintf("Failed to process %d bills completely", len(failedBills))
+		response["failed_bills"] = failedBills
+		response["failed_payments_count"] = totalFailedPayments
+	}
+
+	return response, nil
+}
+
+func (s *billServiceImpl) DivideAllBills(ctx context.Context, userID, apartmentID int) (map[string]interface{}, error) {
+	isManager, err := s.userApartmentRepo.IsUserManagerOfApartment(ctx, userID, apartmentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify manager status: %w", err)
+	}
+	if !isManager {
+		return nil, fmt.Errorf("only apartment managers can divide bills")
+	}
+
+	// Get current residents
+	residents, err := s.userApartmentRepo.GetResidentsInApartment(apartmentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get residents: %w", err)
+	}
+	if len(residents) == 0 {
+		return nil, fmt.Errorf("no residents found in apartment")
+	}
+
+	//all undivided bills for the apartment
+	bills, err := s.repo.GetUndividedBillsByApartment(apartmentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bills: %w", err)
+	}
+	if len(bills) == 0 {
+		return nil, fmt.Errorf("no undivided bills found in apartment")
+	}
+
+	var processedBills []int
+	var failedBills []int
+	var totalFailedPayments int
+	billTypeCount := make(map[models.BillType]int)
+
+	for _, bill := range bills {
+		amountPerResident := bill.TotalAmount / float64(len(residents))
+		billProcessed := true
+		billTypeCount[bill.BillType]++
+
+		for _, resident := range residents {
+			existingPayment, _ := s.paymentRepo.GetPaymentByBillAndUser(bill.ID, resident.ID)
+			if existingPayment != nil {
+				continue
+			}
+
+			payment := models.Payment{
+				BaseModel: models.BaseModel{
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				},
+				BillID:        bill.ID,
+				UserID:        resident.ID,
+				Amount:        fmt.Sprintf("%.2f", amountPerResident),
+				PaymentStatus: models.Pending,
+			}
+
+			_, err := s.paymentRepo.CreatePayment(ctx, payment)
+			if err != nil {
+				log.Printf("Failed to create payment record for user %d, bill %d: %v", resident.ID, bill.ID, err)
+				totalFailedPayments++
+				billProcessed = false
+				continue
+			}
+
+			//sending notification
+			if err := s.notificationService.SendBillNotification(ctx, resident.ID, bill, amountPerResident); err != nil {
+				log.Printf("Failed to send notification to user %d for bill %d: %v", resident.ID, bill.ID, err)
+			}
+		}
+
+		if billProcessed {
+			processedBills = append(processedBills, bill.ID)
+		} else {
+			failedBills = append(failedBills, bill.ID)
+		}
+	}
+
+	response := map[string]interface{}{
+		"residents_count":      len(residents),
+		"processed_bills":      processedBills,
+		"processed_count":      len(processedBills),
+		"bill_types_processed": billTypeCount,
+	}
+
+	if len(failedBills) > 0 {
+		response["warning"] = fmt.Sprintf("Failed to process %d bills completely", len(failedBills))
+		response["failed_bills"] = failedBills
+		response["failed_payments_count"] = totalFailedPayments
 	}
 
 	return response, nil
