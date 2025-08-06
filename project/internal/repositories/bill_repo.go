@@ -124,14 +124,15 @@ func (r *billRepositoryImpl) GetPaymentByBillAndUser(billID, userID int) (*model
 
 func (r *billRepositoryImpl) GetUndividedBillsByTypeAndApartment(apartmentID int, billType models.BillType) ([]models.Bill, error) {
 	query := `
-		SELECT b.id, b.apartment_id, b.bill_type, b.total_amount, b.due_date, 
-		       b.billing_deadline, b.description, b.image_url, b.created_at, b.updated_at
-		FROM bills b
-		WHERE b.apartment_id = ? AND b.bill_type = ? 
-		AND NOT EXISTS (
-			SELECT 1 FROM payments p WHERE p.bill_id = b.id
-		)
-		ORDER BY b.created_at ASC`
+    SELECT b.id, b.apartment_id, b.bill_type, b.total_amount, b.due_date,
+           b.billing_deadline, b.description, b.image_url, b.created_at, b.updated_at
+    FROM bills b
+    WHERE b.apartment_id = $1 
+      AND b.bill_type = $2
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p WHERE p.bill_id = b.id
+      )
+    ORDER BY b.created_at ASC`
 
 	rows, err := r.db.Query(query, apartmentID, billType)
 	if err != nil {
@@ -158,14 +159,14 @@ func (r *billRepositoryImpl) GetUndividedBillsByTypeAndApartment(apartmentID int
 // gets all bills that don't have payment records yet
 func (r *billRepositoryImpl) GetUndividedBillsByApartment(apartmentID int) ([]models.Bill, error) {
 	query := `
-		SELECT b.id, b.apartment_id, b.bill_type, b.total_amount, b.due_date, 
-		       b.billing_deadline, b.description, b.image_url, b.created_at, b.updated_at
-		FROM bills b
-		WHERE b.apartment_id = ? 
-		AND NOT EXISTS (
-			SELECT 1 FROM payments p WHERE p.bill_id = b.id
-		)
-		ORDER BY b.created_at ASC`
+    SELECT b.id, b.apartment_id, b.bill_type, b.total_amount, b.due_date,
+           b.billing_deadline, b.description, b.image_url, b.created_at, b.updated_at
+    FROM bills b
+    WHERE b.apartment_id = $1
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p WHERE p.bill_id = b.id
+      )
+    ORDER BY b.created_at ASC`
 
 	rows, err := r.db.Query(query, apartmentID)
 	if err != nil {

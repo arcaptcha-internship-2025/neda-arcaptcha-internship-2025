@@ -72,6 +72,12 @@ func NewBillService(
 }
 
 func (s *billServiceImpl) CreateBill(ctx context.Context, userID, apartmentID int, req dto.CreateBillRequest, file io.ReadCloser, handler *multipart.FileHeader) (map[string]interface{}, error) {
+	//checking if this apartment with this id exists
+	_, err := s.apartmentRepo.GetApartmentByID(apartmentID)
+	if err != nil {
+		return nil, fmt.Errorf("the apartment id is incorrect: %w", err)
+	}
+
 	isManager, err := s.userApartmentRepo.IsUserManagerOfApartment(ctx, userID, apartmentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify manager status: %w", err)
@@ -161,7 +167,6 @@ func (s *billServiceImpl) DivideBillByType(ctx context.Context, userID, apartmen
 		return nil, fmt.Errorf("only apartment managers can divide bills")
 	}
 
-	// Get current residents
 	residents, err := s.userApartmentRepo.GetResidentsInApartment(apartmentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get residents: %w", err)
