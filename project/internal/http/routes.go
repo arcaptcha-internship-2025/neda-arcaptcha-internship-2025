@@ -74,18 +74,29 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 		"GET": s.userHandler.GetProfile,
 		"PUT": s.userHandler.UpdateProfile,
 	}))
-	residentRoutes.HandleFunc("/apartment/join", s.methodHandler(map[string]http.HandlerFunc{
-		"POST": s.apartmentHandler.JoinApartment,
+	residentRoutes.HandleFunc("/apartment/invite/{invitation_code}", s.methodHandler(map[string]http.HandlerFunc{
+		"GET": s.apartmentHandler.JoinApartment,
 	}))
 	residentRoutes.HandleFunc("/apartment/leave", s.methodHandler(map[string]http.HandlerFunc{
 		"POST": s.apartmentHandler.LeaveApartment,
 	}))
-	residentRoutes.HandleFunc("/bills/pay", utils.MethodHandler(map[string]http.HandlerFunc{
-		"POST": s.billHandler.PayBills,
-	}))
-	residentRoutes.HandleFunc("/bills/pay-batch", utils.MethodHandler(map[string]http.HandlerFunc{
-		"POST": s.billHandler.PayBatchBills,
-	}))
+
+	residentRoutes.HandleFunc("/bills/pay",
+		middleware.IdempotentKeyMiddleware(
+			utils.MethodHandler(map[string]http.HandlerFunc{
+				"POST": s.billHandler.PayBills,
+			}),
+		).ServeHTTP,
+	)
+
+	residentRoutes.HandleFunc("/bills/pay-batch",
+		middleware.IdempotentKeyMiddleware(
+			utils.MethodHandler(map[string]http.HandlerFunc{
+				"POST": s.billHandler.PayBatchBills,
+			}),
+		).ServeHTTP,
+	)
+
 	residentRoutes.HandleFunc("/bills/get-unpaid", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.billHandler.GetUnpaidBills,
 	}))

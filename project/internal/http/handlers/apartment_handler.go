@@ -155,7 +155,7 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		return
 	}
 
-	telegramUsername := r.PathValue("apartment_id")
+	telegramUsername := r.PathValue("telegram_username")
 	if telegramUsername == "" {
 		http.Error(w, "Telegram username is required", http.StatusBadRequest)
 		return
@@ -166,9 +166,9 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 		http.Error(w, "Failed to get user ID from context", http.StatusInternalServerError)
 		return
 	}
-	userID, _ := strconv.Atoi(userIDString)
+	managerID, _ := strconv.Atoi(userIDString)
 
-	response, err := h.apartmentService.InviteUserToApartment(r.Context(), userID, apartmentID, telegramUsername)
+	response, err := h.apartmentService.InviteUserToApartment(r.Context(), managerID, apartmentID, telegramUsername)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -180,11 +180,7 @@ func (h *ApartmentHandler) InviteUserToApartment(w http.ResponseWriter, r *http.
 }
 
 func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "Token is required", http.StatusBadRequest)
-		return
-	}
+	invitationCode := r.PathValue("invitation_code")
 
 	userIDString, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
@@ -193,7 +189,7 @@ func (h *ApartmentHandler) JoinApartment(w http.ResponseWriter, r *http.Request)
 	}
 	userID, _ := strconv.Atoi(userIDString)
 
-	response, err := h.apartmentService.JoinApartment(r.Context(), userID, token)
+	response, err := h.apartmentService.JoinApartment(r.Context(), userID, invitationCode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

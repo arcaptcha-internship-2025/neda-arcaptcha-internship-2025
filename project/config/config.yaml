@@ -1,6 +1,6 @@
 server:
   port: ":8080"
-  app_base_url: "http://localhost:8080"
+  log_level: "warn"
 
 postgres:
   host: "postgres"

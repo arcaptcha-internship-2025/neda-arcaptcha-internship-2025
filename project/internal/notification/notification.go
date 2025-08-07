@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -14,27 +15,25 @@ import (
 
 type Notification interface {
 	SendNotification(ctx context.Context, userID int, message string) error
-	SendInvitation(ctx context.Context, inv models.InvitationLink) error
+	SendInvitation(ctx context.Context, inviteURL string, apartmentID int, receiverUsername string) error
 	SendBillNotification(ctx context.Context, userID int, bill models.Bill, amount float64) error
 	ListenForUpdates(ctx context.Context)
 }
 
 type notificationImpl struct {
-	appBaseURL string
-	userRepo   repositories.UserRepository
-	bot        *tgbotapi.BotAPI
+	userRepo repositories.UserRepository
+	bot      *tgbotapi.BotAPI
 }
 
-func NewNotification(cfg config.TelegramConfig, appBaseURL string, userRepo repositories.UserRepository) Notification {
+func NewNotification(cfg config.TelegramConfig, userRepo repositories.UserRepository) Notification {
 	bot, err := tgbotapi.NewBotAPI(cfg.BotToken)
 	if err != nil {
 		log.Fatalf("Failed to create bot: %v", err)
 	}
 
 	return &notificationImpl{
-		appBaseURL: appBaseURL,
-		userRepo:   userRepo,
-		bot:        bot,
+		userRepo: userRepo,
+		bot:      bot,
 	}
 }
 
@@ -62,8 +61,8 @@ func (n *notificationImpl) SendNotification(ctx context.Context, userID int, mes
 	return n.sendMessage(user.TelegramChatID, message)
 }
 
-func (n *notificationImpl) SendInvitation(ctx context.Context, inv models.InvitationLink) error {
-	receiver, err := n.userRepo.GetUserByTelegramUser(inv.ReceiverUsername)
+func (n *notificationImpl) SendInvitation(ctx context.Context, inviteURL string, apartmentID int, receiverUsername string) error {
+	receiver, err := n.userRepo.GetUserByTelegramUser(receiverUsername)
 	if err != nil {
 		return fmt.Errorf("failed to get receiver user: %w", err)
 	}
@@ -72,15 +71,15 @@ func (n *notificationImpl) SendInvitation(ctx context.Context, inv models.Invita
 		return fmt.Errorf("receiver hasn't started the bot yet")
 	}
 
-	inviteURL := fmt.Sprintf("%s/join?token=%s", n.appBaseURL, inv.Token)
+	expiresAt := time.Now().Add(24 * time.Hour)
 	message := fmt.Sprintf(
 		"🏠 *New Apartment Invitation*\n\n"+
 			"You've been invited to join apartment *%d*!\n\n"+
-			"🔗 [Accept Invitation](%s)\n\n"+
+			"🔗 Accept Invitation: %s\n\n"+
 			"⏰ Expires: %s",
-		inv.ApartmentID,
+		apartmentID,
 		inviteURL,
-		inv.ExpiresAt.Format("2006-01-02 15:04:05"),
+		expiresAt.Format("2006-01-02 15:04:05"),
 	)
 
 	return n.sendMessage(receiver.TelegramChatID, message)

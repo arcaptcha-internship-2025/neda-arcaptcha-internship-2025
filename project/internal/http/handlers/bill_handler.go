@@ -219,7 +219,7 @@ func (h *BillHandler) PayBills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.billService.PayBills(r.Context(), userID, req.BillIDs); err != nil {
+	if err := h.billService.PayBills(r.Context(), userID, req.BillIDs, r.Context().Value(middleware.IdempotentKey).(string)); err != nil {
 		http.Error(w, "Payment failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -242,7 +242,7 @@ func (h *BillHandler) PayBatchBills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.billService.PayBatchBills(r.Context(), userID, req.BillIDs)
+	response, err := h.billService.PayBatchBills(r.Context(), userID, req.BillIDs, r.Context().Value(middleware.IdempotentKey).(string))
 	if err != nil {
 		http.Error(w, "Batch payment failed: "+err.Error(), http.StatusInternalServerError)
 		return

@@ -52,7 +52,7 @@ func NewApartmantService(
 	userRepo repositories.UserRepository,
 	apartmentRepo repositories.ApartmentRepository,
 	userApartmentRepo repositories.UserApartmentRepository,
-	inviteLinkRepo repositories.InviteLinkFlagRepo,
+	inviteLinkRepo repositories.InviteLinkRepo,
 	notificationService notification.Notification,
 	billRepo repositories.BillRepository,
 	imageService image.Image,
@@ -68,7 +68,6 @@ func NewApartmantService(
 		userApartmentRepo,
 		inviteLinkRepo,
 		notificationService,
-		cfg.Server.AppBaseURL,
 	)
 	billService := services.NewBillService(
 		billRepo,

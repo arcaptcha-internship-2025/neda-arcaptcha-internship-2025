@@ -18,6 +18,7 @@ import (
 type contextKey string
 
 const UserIDKey contextKey = "user_id"
+const IdempotentKey contextKey = "idempotent_key"
 
 type CustomClaims struct {
 	EncryptedUserID string          `json:"uid"`
@@ -112,6 +113,19 @@ func ValidateToken(tokenStr string, userType ...models.UserType) (string, error)
 	}
 
 	return decryptedID, nil
+}
+
+func IdempotentKeyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		idempotentKey := r.Header.Get("X-Idempotent-Key")
+		if idempotentKey == "" {
+			http.Error(w, "Idempotent-Key header is required", http.StatusBadRequest)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), IdempotentKey, idempotentKey)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func LoggingMiddleware(next http.Handler) http.Handler {

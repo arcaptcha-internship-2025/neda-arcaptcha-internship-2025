@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"log"
+	"strings"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/config"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/app"
@@ -10,6 +11,7 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/payment"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -37,23 +39,26 @@ func start(_ *cobra.Command, _ []string) {
 		log.Fatalf("failed to connect to MinIO: %v", err)
 	}
 
+	if err := InitLogger(cfg.Server.LogLevel); err != nil {
+		log.Fatalf("failed to initialize logger: %v", err)
+	}
+
 	redisClient := app.NewRedisClient(cfg.Redis)
 
 	userRepo := repositories.NewUserRepository(cfg.Postgres.AutoCreate, db)
 	apartmentRepo := repositories.NewApartmentRepository(cfg.Postgres.AutoCreate, db)
 	userApartmentRepo := repositories.NewUserApartmentRepository(cfg.Postgres.AutoCreate, db)
-	inviteLinkRepo := repositories.NewInvitationLinkRepository(redisClient)
+	inviteLinkRepo := repositories.NewInvitationLinkRepository(redisClient, "invite_salt")
 	billRepo := repositories.NewBillRepository(cfg.Postgres.AutoCreate, db)
 	paymentRepo := repositories.NewPaymentRepository(cfg.Postgres.AutoCreate, db)
 
 	notificationService := notification.NewNotification(
 		cfg.TelegramConfig,
-		cfg.Server.AppBaseURL,
 		userRepo,
 	)
 
 	imageService := image.NewImage(cfg.Minio.Endpoint, cfg.Minio.AccessKey, cfg.Minio.SecretKey, cfg.Minio.Bucket)
-	paymentService := payment.NewPayment()
+	paymentService := payment.NewPayment(redisClient)
 	httpService := myhttp.NewApartmantService(
 		cfg,
 		db,
@@ -74,4 +79,18 @@ func start(_ *cobra.Command, _ []string) {
 		log.Fatalf("failed to start apartment service: %v", err)
 	}
 	httpService.WaitForShutdown()
+}
+
+func InitLogger(level string) error {
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+
+	lvl, err := logrus.ParseLevel(strings.ToLower(level))
+	if err != nil {
+		return err
+	}
+
+	logrus.SetLevel(lvl)
+	return nil
 }
