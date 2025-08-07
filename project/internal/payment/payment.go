@@ -31,7 +31,7 @@ func (p *paymentImpl) PayBills(billIDs []int, idempotentKey string) error {
 		}
 		log.Printf("Processing payment for bill %d with idempotent key %s", billID, idempotentKey)
 
-		// Mark the payment as processed in Redis
+		//marking the payment as processed in redis
 		if err := p.redis.Set(context.Background(), key, "processed", 0).Err(); err != nil {
 			return err
 		}
