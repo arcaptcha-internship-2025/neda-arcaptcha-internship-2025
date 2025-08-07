@@ -3,20 +3,31 @@ package repositories
 import (
 	"context"
 
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/stretchr/testify/mock"
 )
 
-type mockInviteLinkRepo struct {
+type MockInviteLinkRepository struct {
 	mock.Mock
 }
 
-func (m *mockInviteLinkRepo) CreateInvitation(ctx context.Context, inv models.InvitationLink) error {
-	args := m.Called(ctx, inv)
-	return args.Error(0)
+func (m *MockInviteLinkRepository) CreateInvitation(ctx context.Context, userID, apartmentID, managerID int) (string, error) {
+	args := m.Called(ctx, userID, apartmentID, managerID)
+	return args.String(0), args.Error(1)
 }
 
-func (m *mockInviteLinkRepo) GetInvitationByToken(ctx context.Context, token string) (*models.InvitationLink, error) {
-	args := m.Called(ctx, token)
-	return args.Get(0).(*models.InvitationLink), args.Error(1)
+func (m *MockInviteLinkRepository) ValidateAndConsumeInvitation(ctx context.Context, code string) (int, error) {
+	args := m.Called(ctx, code)
+	return args.Int(0), args.Error(1)
+}
+
+func NewMockInviteLinkRepository() *MockInviteLinkRepository {
+	return &MockInviteLinkRepository{}
+}
+
+func (m *MockInviteLinkRepository) ExpectCreateInvitation(ctx context.Context, userID, apartmentID, managerID int, returnCode string, returnError error) *mock.Call {
+	return m.On("CreateInvitation", ctx, userID, apartmentID, managerID).Return(returnCode, returnError)
+}
+
+func (m *MockInviteLinkRepository) ExpectValidateAndConsumeInvitation(ctx context.Context, code string, returnApartmentID int, returnError error) *mock.Call {
+	return m.On("ValidateAndConsumeInvitation", ctx, code).Return(returnApartmentID, returnError)
 }
