@@ -1,5 +1,5 @@
 # Ignore config files (contains sensitive data)
-config.yml
+./config/config.yml
 
 # Ignore IDE/Editor files (optional)
 .idea/
