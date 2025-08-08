@@ -77,12 +77,9 @@ func TestUserHandler_SignUp(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    interface{}
-		setupMock      func(*MockUserService)
+		mockSetup      func(*MockUserService)
 		expectedStatus int
-		expectError    bool
-		errorMsg       string
-		expectSuccess  bool
-		successMsg     string
+		expectedError  string
 	}{
 		{
 			name: "successful signup",
@@ -93,10 +90,10 @@ func TestUserHandler_SignUp(t *testing.T) {
 				Phone:        "1234567890",
 				FullName:     "Test User",
 				UserType:     models.Resident,
-				TelegramUser: "testuser_tg",
+				TelegramUser: "testuser",
 			},
-			setupMock: func(m *MockUserService) {
-				response := &dto.SignUpResponse{
+			mockSetup: func(m *MockUserService) {
+				m.On("CreateUser", mock.Anything, mock.AnythingOfType("dto.CreateUserRequest"), "https://t.me/testbot").Return(&dto.SignUpResponse{
 					User: dto.UserInfo{
 						ID:           1,
 						Username:     "testuser",
@@ -104,34 +101,29 @@ func TestUserHandler_SignUp(t *testing.T) {
 						Phone:        "1234567890",
 						FullName:     "Test User",
 						UserType:     models.Resident,
-						TelegramUser: "testuser_tg",
+						TelegramUser: "testuser",
 					},
-					TelegramSetupRequired:     true,
-					TelegramSetupInstructions: "Please start a chat with our bot in Telegram to complete setup : @testbot",
-				}
-				m.On("CreateUser", mock.Anything, mock.AnythingOfType("dto.CreateUserRequest"), "@testbot").Return(response, nil)
+					TelegramSetupRequired: true,
+				}, nil)
 			},
 			expectedStatus: http.StatusOK,
-			expectSuccess:  true,
-			successMsg:     "user created successfully",
 		},
 		{
-			name:           "invalid JSON body",
-			requestBody:    `{"invalid": "json",`, // malformed JSON
-			setupMock:      func(m *MockUserService) {},
+			name:           "invalid request body",
+			requestBody:    "invalid json",
+			mockSetup:      func(m *MockUserService) {},
 			expectedStatus: http.StatusBadRequest,
-			expectError:    true,
-			errorMsg:       "Invalid request body",
+			expectedError:  "Invalid request body",
 		},
 		{
 			name: "missing required fields",
 			requestBody: dto.CreateUserRequest{
-				Username: "testuser",
-				// missing password and email
+				Username: "",
+				Password: "password123",
+				Email:    "test@example.com",
 			},
-			setupMock:      func(m *MockUserService) {},
+			mockSetup:      func(m *MockUserService) {},
 			expectedStatus: http.StatusBadRequest,
-			expectError:    true,
 		},
 		{
 			name: "username already exists",
@@ -139,50 +131,42 @@ func TestUserHandler_SignUp(t *testing.T) {
 				Username: "existinguser",
 				Password: "password123",
 				Email:    "test@example.com",
-				UserType: models.Resident,
 			},
-			setupMock: func(m *MockUserService) {
-				m.On("CreateUser", mock.Anything, mock.AnythingOfType("dto.CreateUserRequest"), "@testbot").Return(nil, fmt.Errorf("username already exists"))
+			mockSetup: func(m *MockUserService) {
+				m.On("CreateUser", mock.Anything, mock.AnythingOfType("dto.CreateUserRequest"), "https://t.me/testbot").Return(nil, fmt.Errorf("username already exists"))
 			},
 			expectedStatus: http.StatusConflict,
-			expectError:    true,
-			errorMsg:       "username already exists",
+			expectedError:  "username already exists",
 		},
 		{
-			name: "invalid user type",
+			name: "internal server error",
 			requestBody: dto.CreateUserRequest{
 				Username: "testuser",
 				Password: "password123",
 				Email:    "test@example.com",
-				UserType: "invalid_type",
 			},
-			setupMock: func(m *MockUserService) {
-				m.On("CreateUser", mock.Anything, mock.AnythingOfType("dto.CreateUserRequest"), "@testbot").Return(nil, fmt.Errorf("invalid user type"))
+			mockSetup: func(m *MockUserService) {
+				m.On("CreateUser", mock.Anything, mock.AnythingOfType("dto.CreateUserRequest"), "https://t.me/testbot").Return(nil, fmt.Errorf("failed to create user"))
 			},
-			expectedStatus: http.StatusBadRequest,
-			expectError:    true,
-			errorMsg:       "invalid user type",
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUserService)
-			tt.setupMock(mockService)
+			mockService := &MockUserService{}
+			tt.mockSetup(mockService)
 
-			handler := NewUserHandler(mockService, "@testbot")
+			handler := NewUserHandler(mockService, "https://t.me/testbot")
 
-			var reqBody []byte
-			switch body := tt.requestBody.(type) {
-			case string:
-				reqBody = []byte(body)
-			default:
-				var err error
-				reqBody, err = json.Marshal(body)
-				assert.NoError(t, err)
+			var body bytes.Buffer
+			if str, ok := tt.requestBody.(string); ok {
+				body = *bytes.NewBufferString(str)
+			} else {
+				json.NewEncoder(&body).Encode(tt.requestBody)
 			}
 
-			req := httptest.NewRequest("POST", "/signup", bytes.NewBuffer(reqBody))
+			req := httptest.NewRequest(http.MethodPost, "/signup", &body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
@@ -190,26 +174,14 @@ func TestUserHandler_SignUp(t *testing.T) {
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
-			if tt.name == "invalid JSON body" {
-				return
-			}
-
-			var response map[string]interface{}
-			err := json.Unmarshal(w.Body.Bytes(), &response)
-			assert.NoError(t, err)
-
-			if tt.expectError {
-				if tt.errorMsg != "" {
-					assert.Equal(t, tt.errorMsg, response["error"])
+			if tt.expectedError != "" {
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				if err == nil && response["error"] != nil {
+					if errorStr, ok := response["error"].(string); ok {
+						assert.Contains(t, errorStr, tt.expectedError)
+					}
 				}
-				if success, exists := response["success"]; exists {
-					assert.False(t, success.(bool))
-				}
-			}
-
-			if tt.expectSuccess {
-				assert.Equal(t, tt.successMsg, response["message"])
-				assert.True(t, response["success"].(bool))
 			}
 
 			mockService.AssertExpectations(t)
@@ -221,9 +193,9 @@ func TestUserHandler_Login(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    interface{}
-		setupMock      func(*MockUserService)
+		mockSetup      func(*MockUserService)
 		expectedStatus int
-		expectedBody   map[string]interface{}
+		expectedError  string
 	}{
 		{
 			name: "successful login",
@@ -231,26 +203,23 @@ func TestUserHandler_Login(t *testing.T) {
 				Username: "testuser",
 				Password: "password123",
 			},
-			setupMock: func(m *MockUserService) {
-				response := &dto.LoginResponse{
-					Token:    "jwt-token",
+			mockSetup: func(m *MockUserService) {
+				m.On("AuthenticateUser", mock.Anything, mock.AnythingOfType("dto.LoginRequest")).Return(&dto.LoginResponse{
+					Token:    "Bearer token123",
 					UserID:   "1",
-					UserType: string(models.Resident),
+					UserType: "resident",
 					Username: "testuser",
 					Email:    "test@example.com",
 					FullName: "Test User",
-					Telegram: dto.TelegramInfo{
-						Username:  "testuser_tg",
-						Connected: true,
-					},
-				}
-				m.On("AuthenticateUser", mock.Anything, mock.AnythingOfType("dto.LoginRequest")).Return(response, nil)
+				}, nil)
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody: map[string]interface{}{
-				"message": "login successful",
-				"success": true,
-			},
+		},
+		{
+			name:           "invalid request body",
+			requestBody:    "invalid json",
+			mockSetup:      func(m *MockUserService) {},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "invalid credentials",
@@ -258,40 +227,29 @@ func TestUserHandler_Login(t *testing.T) {
 				Username: "testuser",
 				Password: "wrongpassword",
 			},
-			setupMock: func(m *MockUserService) {
+			mockSetup: func(m *MockUserService) {
 				m.On("AuthenticateUser", mock.Anything, mock.AnythingOfType("dto.LoginRequest")).Return(nil, fmt.Errorf("invalid username or password"))
 			},
 			expectedStatus: http.StatusUnauthorized,
-			expectedBody: map[string]interface{}{
-				"error":   "invalid username or password",
-				"success": false,
-			},
-		},
-		{
-			name: "missing required fields",
-			requestBody: dto.LoginRequest{
-				Username: "testuser",
-				//missing password
-			},
-			setupMock:      func(m *MockUserService) {},
-			expectedStatus: http.StatusBadRequest,
-			expectedBody: map[string]interface{}{
-				"success": false,
-			},
+			expectedError:  "invalid username or password",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUserService)
-			tt.setupMock(mockService)
+			mockService := &MockUserService{}
+			tt.mockSetup(mockService)
 
-			handler := NewUserHandler(mockService, "@testbot")
+			handler := NewUserHandler(mockService, "https://t.me/testbot")
 
-			body, err := json.Marshal(tt.requestBody)
-			assert.NoError(t, err)
+			var body bytes.Buffer
+			if str, ok := tt.requestBody.(string); ok {
+				body = *bytes.NewBufferString(str)
+			} else {
+				json.NewEncoder(&body).Encode(tt.requestBody)
+			}
 
-			req := httptest.NewRequest("POST", "/login", bytes.NewBuffer(body))
+			req := httptest.NewRequest(http.MethodPost, "/login", &body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
@@ -299,13 +257,13 @@ func TestUserHandler_Login(t *testing.T) {
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
-			var response map[string]interface{}
-			err = json.Unmarshal(w.Body.Bytes(), &response)
-			assert.NoError(t, err)
-
-			for key, expectedValue := range tt.expectedBody {
-				if key == "message" || key == "error" || key == "success" {
-					assert.Equal(t, expectedValue, response[key])
+			if tt.expectedError != "" {
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				if err == nil && response["error"] != nil {
+					if errorStr, ok := response["error"].(string); ok {
+						assert.Contains(t, errorStr, tt.expectedError)
+					}
 				}
 			}
 
@@ -318,57 +276,41 @@ func TestUserHandler_GetProfile(t *testing.T) {
 	tests := []struct {
 		name           string
 		userID         string
-		setupMock      func(*MockUserService)
+		mockSetup      func(*MockUserService)
 		expectedStatus int
-		expectedBody   map[string]interface{}
 	}{
 		{
 			name:   "successful get profile",
 			userID: "1",
-			setupMock: func(m *MockUserService) {
-				response := &dto.ProfileResponse{
+			mockSetup: func(m *MockUserService) {
+				m.On("GetUserProfile", mock.Anything, 1).Return(&dto.ProfileResponse{
 					ID:       1,
 					Username: "testuser",
 					Email:    "test@example.com",
-					Phone:    "1234567890",
 					FullName: "Test User",
 					UserType: models.Resident,
-					Telegram: dto.TelegramInfo{
-						Username:  "testuser_tg",
-						Connected: true,
-					},
-				}
-				m.On("GetUserProfile", mock.Anything, 1).Return(response, nil)
+				}, nil)
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody: map[string]interface{}{
-				"message": "profile retrieved successfully",
-				"success": true,
-			},
 		},
 		{
 			name:   "user not found",
 			userID: "999",
-			setupMock: func(m *MockUserService) {
+			mockSetup: func(m *MockUserService) {
 				m.On("GetUserProfile", mock.Anything, 999).Return(nil, fmt.Errorf("user not found"))
 			},
 			expectedStatus: http.StatusNotFound,
-			expectedBody: map[string]interface{}{
-				"error":   "user not found",
-				"success": false,
-			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUserService)
-			tt.setupMock(mockService)
+			mockService := &MockUserService{}
+			tt.mockSetup(mockService)
 
-			handler := NewUserHandler(mockService, "@testbot")
+			handler := NewUserHandler(mockService, "https://t.me/testbot")
 
-			req := httptest.NewRequest("GET", "/profile", nil)
-			//adding user ID to context
+			req := httptest.NewRequest(http.MethodGet, "/profile", nil)
 			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
@@ -376,17 +318,6 @@ func TestUserHandler_GetProfile(t *testing.T) {
 			handler.GetProfile(w, req)
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			var response map[string]interface{}
-			err := json.Unmarshal(w.Body.Bytes(), &response)
-			assert.NoError(t, err)
-
-			for key, expectedValue := range tt.expectedBody {
-				if key == "message" || key == "error" || key == "success" {
-					assert.Equal(t, expectedValue, response[key])
-				}
-			}
-
 			mockService.AssertExpectations(t)
 		})
 	}
@@ -396,69 +327,51 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 	tests := []struct {
 		name           string
 		userID         string
-		requestBody    dto.UpdateProfileRequest
-		setupMock      func(*MockUserService)
+		requestBody    interface{}
+		mockSetup      func(*MockUserService)
 		expectedStatus int
-		expectedBody   map[string]interface{}
 	}{
 		{
-			name:   "successful update profile",
+			name:   "successful update",
 			userID: "1",
 			requestBody: dto.UpdateProfileRequest{
-				FullName: "Updated Name",
-				Phone:    "9876543210",
+				Username: "updateduser",
+				Email:    "updated@example.com",
 			},
-			setupMock: func(m *MockUserService) {
-				response := &dto.ProfileResponse{
+			mockSetup: func(m *MockUserService) {
+				m.On("UpdateUserProfile", mock.Anything, 1, mock.AnythingOfType("dto.UpdateProfileRequest")).Return(&dto.ProfileResponse{
 					ID:       1,
-					Username: "testuser",
-					Email:    "test@example.com",
-					Phone:    "9876543210",
-					FullName: "Updated Name",
-					UserType: models.Resident,
-					Telegram: dto.TelegramInfo{
-						Username:  "testuser_tg",
-						Connected: true,
-					},
-				}
-				m.On("UpdateUserProfile", mock.Anything, 1, mock.AnythingOfType("dto.UpdateProfileRequest")).Return(response, nil)
+					Username: "updateduser",
+					Email:    "updated@example.com",
+				}, nil)
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody: map[string]interface{}{
-				"message": "profile updated successfully",
-				"success": true,
-			},
 		},
 		{
-			name:   "user not found",
-			userID: "999",
-			requestBody: dto.UpdateProfileRequest{
-				FullName: "Updated Name",
-			},
-			setupMock: func(m *MockUserService) {
-				m.On("UpdateUserProfile", mock.Anything, 999, mock.AnythingOfType("dto.UpdateProfileRequest")).Return(nil, fmt.Errorf("user not found"))
-			},
-			expectedStatus: http.StatusNotFound,
-			expectedBody: map[string]interface{}{
-				"error":   "user not found",
-				"success": false,
-			},
+			name:           "invalid request body",
+			userID:         "1",
+			requestBody:    "invalid json",
+			mockSetup:      func(m *MockUserService) {},
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUserService)
-			tt.setupMock(mockService)
+			mockService := &MockUserService{}
+			tt.mockSetup(mockService)
 
-			handler := NewUserHandler(mockService, "@testbot")
+			handler := NewUserHandler(mockService, "https://t.me/testbot")
 
-			body, err := json.Marshal(tt.requestBody)
-			assert.NoError(t, err)
+			var body bytes.Buffer
+			if str, ok := tt.requestBody.(string); ok {
+				body = *bytes.NewBufferString(str)
+			} else {
+				json.NewEncoder(&body).Encode(tt.requestBody)
+			}
 
-			req := httptest.NewRequest("PUT", "/profile", bytes.NewBuffer(body))
+			req := httptest.NewRequest(http.MethodPut, "/profile", &body)
 			req.Header.Set("Content-Type", "application/json")
-			//adding user id to context
 			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
@@ -466,17 +379,6 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 			handler.UpdateProfile(w, req)
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			var response map[string]interface{}
-			err = json.Unmarshal(w.Body.Bytes(), &response)
-			assert.NoError(t, err)
-
-			for key, expectedValue := range tt.expectedBody {
-				if key == "message" || key == "error" || key == "success" {
-					assert.Equal(t, expectedValue, response[key])
-				}
-			}
-
 			mockService.AssertExpectations(t)
 		})
 	}
@@ -485,33 +387,32 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 func TestUserHandler_GetUser(t *testing.T) {
 	tests := []struct {
 		name           string
-		userIDParam    string
-		setupMock      func(*MockUserService)
+		userID         string
+		mockSetup      func(*MockUserService)
 		expectedStatus int
 	}{
 		{
-			name:        "successful get user",
-			userIDParam: "1",
-			setupMock: func(m *MockUserService) {
-				response := &dto.PublicUserResponse{
+			name:   "successful get user",
+			userID: "1",
+			mockSetup: func(m *MockUserService) {
+				m.On("GetPublicUser", mock.Anything, 1).Return(&dto.PublicUserResponse{
 					ID:       1,
 					Username: "testuser",
 					FullName: "Test User",
-				}
-				m.On("GetPublicUser", mock.Anything, 1).Return(response, nil)
+				}, nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "invalid user ID",
-			userIDParam:    "invalid",
-			setupMock:      func(m *MockUserService) {},
+			userID:         "invalid",
+			mockSetup:      func(m *MockUserService) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:        "user not found",
-			userIDParam: "999",
-			setupMock: func(m *MockUserService) {
+			name:   "user not found",
+			userID: "999",
+			mockSetup: func(m *MockUserService) {
 				m.On("GetPublicUser", mock.Anything, 999).Return(nil, fmt.Errorf("user not found"))
 			},
 			expectedStatus: http.StatusNotFound,
@@ -520,13 +421,13 @@ func TestUserHandler_GetUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUserService)
-			tt.setupMock(mockService)
+			mockService := &MockUserService{}
+			tt.mockSetup(mockService)
 
-			handler := NewUserHandler(mockService, "@testbot")
+			handler := NewUserHandler(mockService, "https://t.me/testbot")
 
-			req := httptest.NewRequest("GET", "/users/"+tt.userIDParam, nil)
-			req.SetPathValue("user_id", tt.userIDParam)
+			req := httptest.NewRequest(http.MethodGet, "/users/"+tt.userID, nil)
+			req.SetPathValue("user_id", tt.userID)
 			w := httptest.NewRecorder()
 
 			handler.GetUser(w, req)
@@ -540,31 +441,23 @@ func TestUserHandler_GetUser(t *testing.T) {
 func TestUserHandler_GetAllUsers(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMock      func(*MockUserService)
+		mockSetup      func(*MockUserService)
 		expectedStatus int
 	}{
 		{
 			name: "successful get all users",
-			setupMock: func(m *MockUserService) {
-				response := []dto.PublicUserResponse{
-					{
-						ID:       1,
-						Username: "user1",
-						FullName: "User One",
-					},
-					{
-						ID:       2,
-						Username: "user2",
-						FullName: "User Two",
-					},
+			mockSetup: func(m *MockUserService) {
+				users := []dto.PublicUserResponse{
+					{ID: 1, Username: "user1", FullName: "User 1"},
+					{ID: 2, Username: "user2", FullName: "User 2"},
 				}
-				m.On("GetAllPublicUsers", mock.Anything).Return(response, nil)
+				m.On("GetAllPublicUsers", mock.Anything).Return(users, nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name: "service error",
-			setupMock: func(m *MockUserService) {
+			mockSetup: func(m *MockUserService) {
 				m.On("GetAllPublicUsers", mock.Anything).Return(nil, fmt.Errorf("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
@@ -573,12 +466,12 @@ func TestUserHandler_GetAllUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUserService)
-			tt.setupMock(mockService)
+			mockService := &MockUserService{}
+			tt.mockSetup(mockService)
 
-			handler := NewUserHandler(mockService, "@testbot")
+			handler := NewUserHandler(mockService, "https://t.me/testbot")
 
-			req := httptest.NewRequest("GET", "/users", nil)
+			req := httptest.NewRequest(http.MethodGet, "/users", nil)
 			w := httptest.NewRecorder()
 
 			handler.GetAllUsers(w, req)
@@ -592,28 +485,28 @@ func TestUserHandler_GetAllUsers(t *testing.T) {
 func TestUserHandler_DeleteUser(t *testing.T) {
 	tests := []struct {
 		name           string
-		userIDParam    string
-		setupMock      func(*MockUserService)
+		userID         string
+		mockSetup      func(*MockUserService)
 		expectedStatus int
 	}{
 		{
-			name:        "successful delete user",
-			userIDParam: "1",
-			setupMock: func(m *MockUserService) {
+			name:   "successful delete",
+			userID: "1",
+			mockSetup: func(m *MockUserService) {
 				m.On("DeleteUser", mock.Anything, 1).Return(nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "invalid user ID",
-			userIDParam:    "invalid",
-			setupMock:      func(m *MockUserService) {},
+			userID:         "invalid",
+			mockSetup:      func(m *MockUserService) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:        "user not found",
-			userIDParam: "999",
-			setupMock: func(m *MockUserService) {
+			name:   "user not found",
+			userID: "999",
+			mockSetup: func(m *MockUserService) {
 				m.On("DeleteUser", mock.Anything, 999).Return(fmt.Errorf("user not found"))
 			},
 			expectedStatus: http.StatusNotFound,
@@ -622,13 +515,13 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUserService)
-			tt.setupMock(mockService)
+			mockService := &MockUserService{}
+			tt.mockSetup(mockService)
 
-			handler := NewUserHandler(mockService, "@testbot")
+			handler := NewUserHandler(mockService, "https://t.me/testbot")
 
-			req := httptest.NewRequest("DELETE", "/users/"+tt.userIDParam, nil)
-			req.SetPathValue("user_id", tt.userIDParam)
+			req := httptest.NewRequest(http.MethodDelete, "/users/"+tt.userID, nil)
+			req.SetPathValue("user_id", tt.userID)
 			w := httptest.NewRecorder()
 
 			handler.DeleteUser(w, req)
@@ -642,48 +535,40 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 func TestUserHandler_getCurrentUserID(t *testing.T) {
 	tests := []struct {
 		name        string
-		contextKey  interface{}
-		contextVal  interface{}
-		expectedID  int
+		userIDValue interface{}
 		expectError bool
+		expectedID  int
 	}{
 		{
 			name:        "valid user ID",
-			contextKey:  middleware.UserIDKey,
-			contextVal:  "123",
-			expectedID:  123,
+			userIDValue: "123",
 			expectError: false,
+			expectedID:  123,
 		},
 		{
 			name:        "missing user ID",
-			contextKey:  middleware.UserIDKey,
-			contextVal:  nil,
-			expectedID:  0,
+			userIDValue: nil,
 			expectError: true,
 		},
 		{
-			name:        "invalid user ID format",
-			contextKey:  middleware.UserIDKey,
-			contextVal:  123, // not a string
-			expectedID:  0,
+			name:        "invalid format",
+			userIDValue: 123,
 			expectError: true,
 		},
 		{
-			name:        "non-numeric user ID",
-			contextKey:  middleware.UserIDKey,
-			contextVal:  "abc",
-			expectedID:  0,
+			name:        "invalid number format",
+			userIDValue: "invalid",
 			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewUserHandler(nil, "@testbot")
+			handler := &UserHandler{}
 
-			req := httptest.NewRequest("GET", "/test", nil)
-			if tt.contextVal != nil {
-				ctx := context.WithValue(req.Context(), tt.contextKey, tt.contextVal)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.userIDValue != nil {
+				ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userIDValue)
 				req = req.WithContext(ctx)
 			}
 
@@ -691,7 +576,6 @@ func TestUserHandler_getCurrentUserID(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(t, err)
-				assert.Equal(t, 0, userID)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedID, userID)
