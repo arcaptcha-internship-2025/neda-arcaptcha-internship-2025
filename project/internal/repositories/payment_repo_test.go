@@ -371,3 +371,93 @@ func TestPaymentRepository_DeletePayment(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestPaymentRepository_GetPendingPaymentsByUser(t *testing.T) {
+	db, mock := setupPaymentTestDB(t)
+	defer db.Close()
+
+	repo := &paymentRepositoryImpl{db: db}
+	userID := 1
+
+	t.Run("successful retrieval", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{
+			"id", "bill_id", "user_id", "amount", "paid_at", "payment_status", "created_at", "updated_at",
+		}).AddRow(1, 1, userID, "50.00", time.Now(), models.Pending, time.Now(), time.Now())
+
+		mock.ExpectQuery("SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at FROM payments WHERE user_id = \\$1 and payment_status = 'pending'").
+			WithArgs(userID).
+			WillReturnRows(rows)
+
+		payments, err := repo.GetPendingPaymentsByUser(userID)
+
+		assert.NoError(t, err)
+		assert.Len(t, payments, 1)
+		assert.Equal(t, userID, payments[0].UserID)
+
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+
+	t.Run("no pending payments", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{
+			"id", "bill_id", "user_id", "amount", "paid_at", "payment_status", "created_at", "updated_at",
+		})
+
+		mock.ExpectQuery("SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at FROM payments WHERE user_id = \\$1 and payment_status = 'pending'").
+			WithArgs(userID).
+			WillReturnRows(rows)
+
+		payments, err := repo.GetPendingPaymentsByUser(userID)
+
+		assert.NoError(t, err)
+		assert.Len(t, payments, 0)
+
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+}
+
+func TestPaymentRepository_GetPaymentsByBill(t *testing.T) {
+	db, mock := setupPaymentTestDB(t)
+	defer db.Close()
+
+	repo := &paymentRepositoryImpl{db: db}
+	billID := 1
+
+	t.Run("successful retrieval", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{
+			"id", "bill_id", "user_id", "amount", "paid_at", "payment_status", "created_at", "updated_at",
+		}).AddRow(1, billID, 1, "75.00", time.Now(), models.Paid, time.Now(), time.Now())
+
+		mock.ExpectQuery("SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at FROM payments WHERE bill_id = \\$1").
+			WithArgs(billID).
+			WillReturnRows(rows)
+
+		payments, err := repo.GetPaymentsByBill(billID)
+
+		assert.NoError(t, err)
+		assert.Len(t, payments, 1)
+		assert.Equal(t, billID, payments[0].BillID)
+
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+
+	t.Run("no payments for bill", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{
+			"id", "bill_id", "user_id", "amount", "paid_at", "payment_status", "created_at", "updated_at",
+		})
+
+		mock.ExpectQuery("SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at FROM payments WHERE bill_id = \\$1").
+			WithArgs(billID).
+			WillReturnRows(rows)
+
+		payments, err := repo.GetPaymentsByBill(billID)
+
+		assert.NoError(t, err)
+		assert.Len(t, payments, 0)
+
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+}
