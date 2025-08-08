@@ -190,7 +190,7 @@ func (s *apartmentServiceImpl) InviteUserToApartment(ctx context.Context, manage
 
 	fmt.Println("Generated invitation code:", generatedCode)
 
-	inviteURL := fmt.Sprintf("http://localhost:8080/invite/%s", generatedCode)
+	inviteURL := fmt.Sprintf("http://localhost:8080/api/v1/resident/apartment/invite/%s", generatedCode)
 
 	fmt.Println("Invite URL: ", inviteURL)
 

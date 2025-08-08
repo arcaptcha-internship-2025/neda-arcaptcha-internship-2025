@@ -154,7 +154,7 @@ func (s *userServiceImpl) AuthenticateUser(ctx context.Context, req dto.LoginReq
 	}).Info("Authentication successful")
 
 	response := &dto.LoginResponse{
-		Token:    token,
+		Token:    "Bearer " + token,
 		UserID:   strconv.Itoa(existingUser.ID),
 		UserType: string(existingUser.UserType),
 		Username: existingUser.Username,
