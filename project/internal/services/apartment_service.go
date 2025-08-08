@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -15,11 +16,11 @@ import (
 
 type ApartmentService interface {
 	CreateApartment(ctx context.Context, userID int, apartmentName, address string, unitsCount int) (int, error)
-	GetApartmentByID(ctx context.Context, id int) (*models.Apartment, error)
-	GetResidentsInApartment(ctx context.Context, apartmentID int) ([]models.User, error)
+	GetApartmentByID(ctx context.Context, id, managerId int) (*models.Apartment, error)
+	GetResidentsInApartment(ctx context.Context, apartmentID, managerId int) ([]models.User, error)
 	GetAllApartmentsForResident(ctx context.Context, residentID int) ([]models.Apartment, error)
 	UpdateApartment(ctx context.Context, id int, apartmentName, address string, unitsCount, managerID int) error
-	DeleteApartment(ctx context.Context, id int) error
+	DeleteApartment(ctx context.Context, id, managerId int) error
 	InviteUserToApartment(ctx context.Context, managerID, apartmentID int, telegramUsername string) (map[string]interface{}, error)
 	JoinApartment(ctx context.Context, userID int, token string) (map[string]interface{}, error)
 	LeaveApartment(ctx context.Context, userID, apartmentID int) error
@@ -86,8 +87,11 @@ func (s *apartmentServiceImpl) CreateApartment(ctx context.Context, userID int, 
 	return id, nil
 }
 
-func (s *apartmentServiceImpl) GetApartmentByID(ctx context.Context, id int) (*models.Apartment, error) {
+func (s *apartmentServiceImpl) GetApartmentByID(ctx context.Context, id, managerId int) (*models.Apartment, error) {
 	logrus.Infof("Fetching apartment by ID %d", id)
+	if ok, err := s.userApartmentRepo.IsUserManagerOfApartment(ctx, managerId, id); err != nil || !ok {
+		return nil, fmt.Errorf("") // error khali bayad bashe
+	}
 	apartment, err := s.apartmentRepo.GetApartmentByID(id)
 	if err != nil {
 		logrus.WithError(err).Errorf("Failed to fetch apartment %d", id)
@@ -96,8 +100,11 @@ func (s *apartmentServiceImpl) GetApartmentByID(ctx context.Context, id int) (*m
 	return apartment, nil
 }
 
-func (s *apartmentServiceImpl) GetResidentsInApartment(ctx context.Context, apartmentID int) ([]models.User, error) {
+func (s *apartmentServiceImpl) GetResidentsInApartment(ctx context.Context, apartmentID, managerId int) ([]models.User, error) {
 	logrus.Infof("Fetching residents for apartment %d", apartmentID)
+	if ok, err := s.userApartmentRepo.IsUserManagerOfApartment(ctx, managerId, apartmentID); err != nil || !ok {
+		return nil, fmt.Errorf("") // error khali bayad bashe
+	}
 	residents, err := s.userApartmentRepo.GetResidentsInApartment(apartmentID)
 	if err != nil {
 		logrus.WithError(err).Errorf("Failed to get residents for apartment %d", apartmentID)
@@ -118,6 +125,9 @@ func (s *apartmentServiceImpl) GetAllApartmentsForResident(ctx context.Context, 
 
 func (s *apartmentServiceImpl) UpdateApartment(ctx context.Context, id int, apartmentName, address string, unitsCount, managerID int) error {
 	logrus.Infof("Updating apartment %d by manager %d", id, managerID)
+	if ok, err := s.userApartmentRepo.IsUserManagerOfApartment(ctx, managerID, id); err != nil || !ok {
+		return fmt.Errorf("") // error khali bayad bashe
+	}
 
 	apartment := models.Apartment{
 		BaseModel: models.BaseModel{
@@ -137,8 +147,12 @@ func (s *apartmentServiceImpl) UpdateApartment(ctx context.Context, id int, apar
 	return nil
 }
 
-func (s *apartmentServiceImpl) DeleteApartment(ctx context.Context, id int) error {
+func (s *apartmentServiceImpl) DeleteApartment(ctx context.Context, id, managerId int) error {
 	logrus.Infof("Deleting apartment %d", id)
+
+	if ok, err := s.userApartmentRepo.IsUserManagerOfApartment(ctx, managerId, id); err != nil || !ok {
+		return fmt.Errorf("") // error khali bayad bashe
+	}
 
 	if err := s.apartmentRepo.DeleteApartment(id); err != nil {
 		logrus.WithError(err).Errorf("Failed to delete apartment %d", id)
@@ -242,6 +256,8 @@ func (s *apartmentServiceImpl) JoinApartment(ctx context.Context, userID int, in
 		logrus.WithError(err).Error("Failed to join apartment")
 		return nil, fmt.Errorf("failed to join apartment: %w", err)
 	}
+
+	s.notificationService.SendNotification(ctx, userID, "You joined apartment "+strconv.Itoa(apartmentID))
 
 	logrus.Infof("User %d joined apartment %d", userID, apartmentID)
 	return map[string]interface{}{

@@ -9,7 +9,7 @@ import (
 )
 
 type Payment interface {
-	PayBills(billIDs []int, idempotentKey string) error
+	PayBills(paymentIDs []int, idempotentKey string) error
 }
 
 type paymentImpl struct {
@@ -22,8 +22,8 @@ func NewPayment(redis *redis.Client) Payment {
 	}
 }
 
-func (p *paymentImpl) PayBills(billIDs []int, idempotentKey string) error {
-	for _, billID := range billIDs {
+func (p *paymentImpl) PayBills(paymentIDs []int, idempotentKey string) error {
+	for _, billID := range paymentIDs {
 		key := billPaymentKey(billID, idempotentKey)
 		if p.redis.Exists(context.Background(), key).Val() > 0 {
 			log.Printf("Payment for bill %d with idempotent key %s already processed", billID, idempotentKey)
@@ -40,6 +40,6 @@ func (p *paymentImpl) PayBills(billIDs []int, idempotentKey string) error {
 	return nil
 }
 
-func billPaymentKey(billID int, idempotentKey string) string {
-	return "bill_payment:" + strconv.Itoa(billID) + ":" + idempotentKey
+func billPaymentKey(paymentID int, idempotentKey string) string {
+	return "bill_payment:" + strconv.Itoa(paymentID) + ":" + idempotentKey
 }

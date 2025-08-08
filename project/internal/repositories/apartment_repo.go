@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -82,6 +83,19 @@ func (r *apartmentRepositoryImpl) UpdateApartment(ctx context.Context, apartment
 
 func (r *apartmentRepositoryImpl) DeleteApartment(id int) error {
 	query := `DELETE FROM apartments WHERE id = $1`
-	_, err := r.db.Exec(query, id)
-	return err
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("no apartment found with id %d", id)
+	}
+
+	return nil
 }

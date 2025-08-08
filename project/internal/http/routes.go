@@ -81,10 +81,10 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 		"POST": s.apartmentHandler.LeaveApartment,
 	}))
 
-	residentRoutes.HandleFunc("/bills/pay",
+	residentRoutes.HandleFunc("/bills/pay/{payment_id}",
 		middleware.IdempotentKeyMiddleware(
 			utils.MethodHandler(map[string]http.HandlerFunc{
-				"POST": s.billHandler.PayBills,
+				"POST": s.billHandler.PayBill,
 			}),
 		).ServeHTTP,
 	)
@@ -99,9 +99,6 @@ func (s *ApartmantService) SetupRoutes(mux *http.ServeMux) {
 
 	residentRoutes.HandleFunc("/bills/get-unpaid", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.billHandler.GetUnpaidBills,
-	}))
-	residentRoutes.HandleFunc("/bill/status", utils.MethodHandler(map[string]http.HandlerFunc{
-		"GET": s.billHandler.GetBillWithPaymentStatus,
 	}))
 	residentRoutes.HandleFunc("/bills/payment-history", utils.MethodHandler(map[string]http.HandlerFunc{
 		"GET": s.billHandler.GetUserPaymentHistory,

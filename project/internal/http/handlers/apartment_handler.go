@@ -57,10 +57,12 @@ func (h *ApartmentHandler) GetApartmentByID(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
 	}
+	managerId, _ := strconv.Atoi(r.Context().Value(middleware.UserIDKey).(string))
 
-	apartment, err := h.apartmentService.GetApartmentByID(r.Context(), id)
+	apartment, err := h.apartmentService.GetApartmentByID(r.Context(), id, managerId)
+
 	if err != nil {
-		http.Error(w, "Apartment not found: "+err.Error(), http.StatusNotFound)
+		http.Error(w, "Apartment not found"+err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -75,8 +77,9 @@ func (h *ApartmentHandler) GetResidentsInApartment(w http.ResponseWriter, r *htt
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
 	}
+	managerId, _ := strconv.Atoi(r.Context().Value(middleware.UserIDKey).(string))
 
-	residents, err := h.apartmentService.GetResidentsInApartment(r.Context(), apartmentID)
+	residents, err := h.apartmentService.GetResidentsInApartment(r.Context(), apartmentID, managerId)
 	if err != nil {
 		http.Error(w, "Failed to get residents: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -138,8 +141,9 @@ func (h *ApartmentHandler) DeleteApartment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid apartment ID", http.StatusBadRequest)
 		return
 	}
+	managerId, _ := strconv.Atoi(r.Context().Value(middleware.UserIDKey).(string))
 
-	if err := h.apartmentService.DeleteApartment(r.Context(), id); err != nil {
+	if err := h.apartmentService.DeleteApartment(r.Context(), id, managerId); err != nil {
 		http.Error(w, "Failed to delete apartment: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -1,0 +1,587 @@
+openapi: 3.0.0
+info:
+  title: Apartment Service API
+  version: 1.0.0
+servers:
+  - url: http://{{baseurl}}
+tags:
+  - name: user
+  - name: user > signup
+  - name: user > login
+  - name: manager
+  - name: manager > user
+  - name: manager > user > get-all
+  - name: manager > user > get
+  - name: manager > user > delete
+  - name: manager > apartment
+  - name: manager > apartment > create
+  - name: manager > apartment > get
+  - name: manager > apartment > update
+  - name: manager > apartment > delete
+  - name: manager > apartment > {apartment-id}
+  - name: manager > apartment > {apartment-id} > residents
+  - name: manager > apartment > {apartment-id} > invite
+  - name: manager > apartment > {apartment-id} > invite > resident
+  - name: >-
+      manager > apartment > {apartment-id} > invite > resident >
+      {telegram-username}
+  - name: manager > apartments
+  - name: manager > apartments > get-all
+  - name: manager > apartments > get-all > resident
+  - name: manager > apartments > get-all > resident > {userID}
+  - name: manager > bill
+  - name: manager > bill > {apartment-id}
+  - name: manager > bill > {apartment-id} > create
+  - name: manager > bill > get
+  - name: manager > bill > update
+  - name: manager > bill > delete
+  - name: manager > bills
+  - name: manager > bills > get-all
+  - name: manager > bills > divide by type
+  - name: manager > bills > divide all
+  - name: resident
+  - name: resident > profile
+  - name: resident > apartment
+  - name: resident > apartment > join
+  - name: resident > apartment > leave
+  - name: resident > bills
+  - name: resident > bills > pay
+  - name: resident > bills > pay-batch
+  - name: resident > bills > get-unpaid
+  - name: resident > bills > payment-history
+  - name: resident > bill
+  - name: resident > bill > status
+paths:
+  /user/signup:
+    post:
+      tags:
+        - user > signup
+      summary: User signup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                username: moz
+                password: moz
+                email: moz@gmail.com
+                full_name: moz
+                phone: '12345'
+                user_type: resident
+                telegram_user: moasdasdzz1
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /user/login:
+    post:
+      tags:
+        - user > login
+      summary: User login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                username: moz2
+                password: moz2
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/user/get-all:
+    get:
+      tags:
+        - manager > user > get-all
+      summary: Get all users (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/user/4:
+    get:
+      tags:
+        - manager > user > get
+      summary: Get user by ID (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJySkxpQ19zb3ZWQ3M1RmpWNjgyaHRDbUtZUVk2czhReThCWlQ0Q1k9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDc0MTI1NCwiaWF0IjoxNzU0NjU0ODU0fQ.7vtYme14LOcnSSpVCDWbv6kFHyrduUhB6RJVkq55EtQ
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/user/6:
+    delete:
+      tags:
+        - manager > user > delete
+      summary: Delete user (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJySkxpQ19zb3ZWQ3M1RmpWNjgyaHRDbUtZUVk2czhReThCWlQ0Q1k9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDc0MTI1NCwiaWF0IjoxNzU0NjU0ODU0fQ.7vtYme14LOcnSSpVCDWbv6kFHyrduUhB6RJVkq55EtQ
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/apartment:
+    post:
+      tags:
+        - manager > apartment > create
+      summary: Create apartment (Manager)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                apartment_name: shalas
+                address: tehran
+                units_count: 1
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+    get:
+      tags:
+        - manager > apartment > get
+      summary: Get apartment by ID (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+        - name: id
+          in: query
+          schema:
+            type: integer
+          example: '1'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+    put:
+      tags:
+        - manager > apartment > update
+      summary: Update apartment (Manager)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                id: 2
+                apartment_name: shalas
+                address: tehran
+                units_count: 3
+                manager_id: 5
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJoSE55aWxhTlRxV3I3Z2ZWYjZadE9UbHNWZk5EY2xIbjY1RFg4UUk9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDI5NjQxNywiaWF0IjoxNzU0MjEwMDE3fQ.l2CVH-EgaqgSx8788mZASpK0zWYkbh4-_jOgosJHkwE
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+    delete:
+      tags:
+        - manager > apartment > delete
+      summary: Delete apartment (Manager)
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/apartment/1/residents:
+    get:
+      tags:
+        - manager > apartment > {apartment-id} > residents
+      summary: Get residents in apartment (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/apartment/{apartment-id}/invite/resident/{telegram-username}:
+    post:
+      tags:
+        - >-
+          manager > apartment > {apartment-id} > invite > resident >
+          {telegram-username}
+      summary: Invite user to apartment (Manager)
+      requestBody:
+        content: {}
+      parameters:
+        - name: apartment-id
+          in: path
+          schema:
+            type: string
+          required: true
+          description: '(Required) '
+          example: deserunt voluptate esse
+        - name: telegram-username
+          in: path
+          schema:
+            type: string
+          required: true
+          description: '(Required) '
+          example: deserunt voluptate esse
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/apartments/get-all/resident/1:
+    get:
+      tags:
+        - manager > apartments > get-all > resident > {userID}
+      summary: Get all apartments for resident (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/bill/{apartment-id}:
+    post:
+      tags:
+        - manager > bill > {apartment-id} > create
+      summary: Create bill (Manager)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                bill_type:
+                  type: string
+                  example: water
+                total_amount:
+                  type: number
+                  example: '99.99'
+                due_date:
+                  type: string
+                  example: '2023-12-31'
+                billing_deadline:
+                  type: string
+                  example: '2023-12-25'
+                description:
+                  type: string
+                  example: Monthly subscription
+                bill_image:
+                  type: string
+                  format: binary
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+        - name: apartment-id
+          in: path
+          schema:
+            type: integer
+          required: true
+          example: '1'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/bill:
+    get:
+      tags:
+        - manager > bill > get
+      summary: Get bill by ID (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+        - name: id
+          in: query
+          schema:
+            type: integer
+          example: '1'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+    delete:
+      tags:
+        - manager > bill > delete
+      summary: Delete bill (Manager)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJmT2xpd0lnQ3dacUYyMUEwOXpnNl9aY0N3dHM3ZHVtM2ctbVFVSFE9IiwidXNlcl90eXBlIjoibWFuYWdlciIsImV4cCI6MTc1NDQwNDE4NywiaWF0IjoxNzU0MzE3Nzg3fQ.fqhaMmROlbK_x3mpfSI30u5Gp-pwsz_GNdM5hxCIMuE
+        - name: bill_id
+          in: query
+          schema:
+            type: integer
+          example: '1'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/bill/update:
+    put:
+      tags:
+        - manager > bill > update
+      summary: Update bill (Manager)
+      requestBody:
+        content: {}
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /manager/bills/get-all:
+    get:
+      tags:
+        - manager > bills > get-all
+      summary: Get all bills by apartment (Manager)
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /resident/profile:
+    get:
+      tags:
+        - resident > profile
+      summary: Get profile (Resident)
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiI4VlZySE1sZDYxcnJyWW9NOFdwZjNlY2hUWTVxYVIyVEVFRW9aWnM9IiwidXNlcl90eXBlIjoicmVzaWRlbnQiLCJleHAiOjE3NTQ0MDQyNDAsImlhdCI6MTc1NDMxNzg0MH0.8Eu527_10WppupLAQEC1_y4FH7U5Txv6l6VJKNa1iCc
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+    put:
+      tags:
+        - resident > profile
+      summary: Update profile (Resident)
+      requestBody:
+        content: {}
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /resident/apartment/join:
+    post:
+      tags:
+        - resident > apartment > join
+      summary: Join apartment (Resident)
+      requestBody:
+        content: {}
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /resident/apartment/leave:
+    post:
+      tags:
+        - resident > apartment > leave
+      summary: Leave apartment (Resident)
+      requestBody:
+        content: {}
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /resident/bills/pay:
+    post:
+      tags:
+        - resident > bills > pay
+      summary: Pay bills (Resident)
+      requestBody:
+        content: {}
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /resident/bills/pay-batch:
+    post:
+      tags:
+        - resident > bills > pay-batch
+      summary: Pay batch bills (Resident)
+      requestBody:
+        content: {}
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /resident/bills/get-unpaid:
+    get:
+      tags:
+        - resident > bills > get-unpaid
+      summary: Get unpaid bills (Resident)
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''
+  /resident/bills/payment-history:
+    get:
+      tags:
+        - resident > bills > payment-history
+      summary: Get user payment history (Resident)
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: ''

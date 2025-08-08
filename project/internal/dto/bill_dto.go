@@ -13,9 +13,3 @@ type CreateBillRequest struct {
 type PayBillsRequest struct {
 	BillIDs []int `json:"bill_ids"`
 }
-
-type BatchPaymentRequest struct {
-	UserID  int     `json:"user_id"`
-	BillIDs []int   `json:"bill_ids"`
-	Amount  float64 `json:"total_amount"`
-}

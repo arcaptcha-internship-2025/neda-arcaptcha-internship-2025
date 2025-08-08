@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -104,8 +105,21 @@ func (r *userRepositoryImpl) UpdateUser(ctx context.Context, user models.User) e
 
 func (r *userRepositoryImpl) DeleteUser(id int) error {
 	query := `DELETE FROM users WHERE id = $1`
-	_, err := r.db.Exec(query, id)
-	return err
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("no user found with id %d", id)
+	}
+
+	return nil
 }
 
 func (r *userRepositoryImpl) GetAllUsers(ctx context.Context) ([]models.User, error) {

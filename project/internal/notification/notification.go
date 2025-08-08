@@ -103,10 +103,6 @@ func (n *notificationImpl) SendBillNotification(ctx context.Context, userID int,
 			"Description: %s\n",
 		bill.BillType, amount, bill.DueDate, bill.Description)
 
-	if bill.ImageURL != "" {
-		message += "\n📷 Bill image is available in your dashboard"
-	}
-
 	return n.sendMessage(user.TelegramChatID, message)
 }
 

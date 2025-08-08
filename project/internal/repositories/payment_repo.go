@@ -26,6 +26,7 @@ type PaymentRepository interface {
 	GetPaymentByID(id int) (*models.Payment, error)
 	GetPaymentByBillAndUser(billID, userID int) (*models.Payment, error)
 	GetPaymentsByUser(userID int) ([]models.Payment, error)
+	GetPendingPaymentsByUser(userID int) ([]models.Payment, error)
 	GetPaymentsByBill(billID int) ([]models.Payment, error)
 	UpdatePaymentStatus(ctx context.Context, payment models.Payment) error
 	UpdatePaymentsStatus(ctx context.Context, payments []models.Payment) error
@@ -87,6 +88,17 @@ func (r *paymentRepositoryImpl) GetPaymentsByUser(userID int) ([]models.Payment,
 	var payments []models.Payment
 	query := `SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at 
 			  FROM payments WHERE user_id = $1`
+	err := r.db.Select(&payments, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	return payments, nil
+}
+
+func (r *paymentRepositoryImpl) GetPendingPaymentsByUser(userID int) ([]models.Payment, error) {
+	var payments []models.Payment
+	query := `SELECT id, bill_id, user_id, amount, paid_at, payment_status, created_at, updated_at 
+			  FROM payments WHERE user_id = $1 and payment_status = 'pending'`
 	err := r.db.Select(&payments, query, userID)
 	if err != nil {
 		return nil, err

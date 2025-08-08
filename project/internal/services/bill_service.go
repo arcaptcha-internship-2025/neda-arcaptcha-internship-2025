@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -23,9 +24,9 @@ type BillService interface {
 	GetBillsByApartmentID(ctx context.Context, apartmentID int) ([]models.Bill, error)
 	UpdateBill(ctx context.Context, id, apartmentID int, billType string, totalAmount float64, dueDate, billingDeadline, description string) error
 	DeleteBill(ctx context.Context, id int) error
-	PayBills(ctx context.Context, userID int, billIDs []int, idempotentKey string) error
-	PayBatchBills(ctx context.Context, userID int, billIDs []int, idempotentKey string) (map[string]interface{}, error)
-	GetUnpaidBills(ctx context.Context, userID int) ([]models.Bill, error)
+	PayBills(ctx context.Context, userID int, paymentIDs []int, idempotentKey string) error
+	PayBatchBills(ctx context.Context, userID int, idempotentKey string) (map[string]interface{}, error)
+	GetUnpaidBills(ctx context.Context, userID int) ([]models.Payment, error)
 	GetBillWithPaymentStatus(ctx context.Context, userID, billID int) (map[string]interface{}, error)
 	GetUserPaymentHistory(ctx context.Context, userID int) ([]PaymentHistoryItem, error)
 	DivideBillByType(ctx context.Context, userID, apartmentID int, billType models.BillType) (map[string]interface{}, error)
@@ -155,7 +156,7 @@ func (s *billServiceImpl) CreateBill(ctx context.Context, userID, apartmentID in
 		DueDate:         req.DueDate,
 		BillingDeadline: req.BillingDeadline,
 		Description:     req.Description,
-		ImageURL:        imageKey,
+		ImageURL:        "http://localhost:9000/mybucket/" + imageKey,
 	}
 
 	billID, err := s.repo.CreateBill(ctx, bill)
@@ -521,27 +522,25 @@ func (s *billServiceImpl) DeleteBill(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *billServiceImpl) PayBills(ctx context.Context, userID int, billIDs []int, idempotentKey string) error {
+func (s *billServiceImpl) PayBills(ctx context.Context, userID int, paymentIDs []int, idempotentKey string) error {
 	logger := logrus.WithFields(logrus.Fields{
-		"user_id":    userID,
-		"bill_ids":   billIDs,
-		"bill_count": len(billIDs),
+		"user_id": userID,
 	})
 
 	logger.Info("Processing bill payment")
 
-	if err := s.paymentService.PayBills(billIDs, idempotentKey); err != nil {
+	if err := s.paymentService.PayBills(paymentIDs, idempotentKey); err != nil {
 		logger.WithError(err).Error("Payment processing failed")
 		return fmt.Errorf("payment failed: %w", err)
 	}
 
 	var payments []models.Payment
-	for _, billID := range billIDs {
+	for _, paymentID := range paymentIDs {
 		payments = append(payments, models.Payment{
 			BaseModel: models.BaseModel{
 				UpdatedAt: time.Now(),
+				ID:        paymentID,
 			},
-			BillID:        billID,
 			UserID:        userID,
 			PaidAt:        time.Now(),
 			PaymentStatus: models.Paid,
@@ -557,51 +556,53 @@ func (s *billServiceImpl) PayBills(ctx context.Context, userID int, billIDs []in
 	return nil
 }
 
-func (s *billServiceImpl) PayBatchBills(ctx context.Context, userID int, billIDs []int, idempotentKey string) (map[string]interface{}, error) {
+func (s *billServiceImpl) PayBatchBills(ctx context.Context, userID int, idempotentKey string) (map[string]interface{}, error) {
 	logger := logrus.WithFields(logrus.Fields{
-		"user_id":    userID,
-		"bill_count": len(billIDs),
+		"user_id": userID,
 	})
 
 	logger.Info("Processing batch bill payment")
 
 	var totalAmount float64
-	var validBills []int
+	paymentss, err := s.paymentRepo.GetPendingPaymentsByUser(userID)
+	if err != nil {
+		return nil, errors.New("internal server error")
+	}
+	paymentIds := make([]int, 10)
 
-	for _, billID := range billIDs {
-		payment, err := s.paymentRepo.GetPaymentByBillAndUser(billID, userID)
+	for _, payment := range paymentss {
+		paymentIds = append(paymentIds, payment.ID)
+
+		amount, err := strconv.ParseFloat(payment.Amount, 64)
 		if err != nil {
 			continue
 		}
-		if payment.PaymentStatus == models.Pending {
-			amount, _ := strconv.ParseFloat(payment.Amount, 64)
-			totalAmount += amount
-			validBills = append(validBills, billID)
-		}
+
+		totalAmount += amount
 	}
 
-	if len(validBills) == 0 {
+	if len(paymentIds) == 0 {
 		logger.Warn("No valid unpaid bills found for batch payment")
 		return nil, fmt.Errorf("no valid unpaid bills found")
 	}
 
 	logger.WithFields(logrus.Fields{
-		"valid_bills_count": len(validBills),
+		"valid_bills_count": len(paymentIds),
 		"total_amount":      totalAmount,
 	}).Info("Processing batch payment for valid bills")
 
-	if err := s.paymentService.PayBills(validBills, idempotentKey); err != nil {
+	if err := s.paymentService.PayBills(paymentIds, idempotentKey); err != nil {
 		logger.WithError(err).Error("Batch payment processing failed")
 		return nil, fmt.Errorf("batch payment failed: %w", err)
 	}
 
 	var payments []models.Payment
-	for _, billID := range validBills {
+	for _, paymentID := range paymentIds {
 		payments = append(payments, models.Payment{
 			BaseModel: models.BaseModel{
+				ID:        paymentID,
 				UpdatedAt: time.Now(),
 			},
-			BillID:        billID,
 			UserID:        userID,
 			PaidAt:        time.Now(),
 			PaymentStatus: models.Paid,
@@ -614,45 +615,17 @@ func (s *billServiceImpl) PayBatchBills(ctx context.Context, userID int, billIDs
 	}
 
 	logger.WithFields(logrus.Fields{
-		"bills_paid":   len(validBills),
 		"total_amount": totalAmount,
 	}).Info("Batch payment completed successfully")
 
 	return map[string]interface{}{
 		"status":       "batch payment successful",
-		"bills_paid":   len(validBills),
 		"total_amount": totalAmount,
 	}, nil
 }
 
-func (s *billServiceImpl) GetUnpaidBills(ctx context.Context, userID int) ([]models.Bill, error) {
-	apartments, err := s.userApartmentRepo.GetAllApartmentsForAResident(userID)
-	if err != nil {
-		logrus.WithError(err).WithField("user_id", userID).Error("Failed to get apartments for user")
-		return nil, fmt.Errorf("failed to get apartments: %w", err)
-	}
-
-	var unpaidBills []models.Bill
-	for _, apartment := range apartments {
-		bills, err := s.repo.GetBillsByApartmentID(apartment.ID)
-		if err != nil {
-			continue
-		}
-
-		for _, bill := range bills {
-			payment, err := s.paymentRepo.GetPaymentByBillAndUser(bill.ID, userID)
-			if err == nil && payment.PaymentStatus == models.Pending {
-				unpaidBills = append(unpaidBills, bill)
-			}
-		}
-	}
-
-	logrus.WithFields(logrus.Fields{
-		"user_id":            userID,
-		"unpaid_bills_count": len(unpaidBills),
-	}).Debug("Retrieved unpaid bills for user")
-
-	return unpaidBills, nil
+func (s *billServiceImpl) GetUnpaidBills(ctx context.Context, userID int) ([]models.Payment, error) {
+	return s.paymentRepo.GetPendingPaymentsByUser(userID)
 }
 
 func (s *billServiceImpl) GetBillWithPaymentStatus(ctx context.Context, userID, billID int) (map[string]interface{}, error) {

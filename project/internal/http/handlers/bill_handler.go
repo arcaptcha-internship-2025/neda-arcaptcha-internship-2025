@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/dto"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
@@ -206,20 +208,31 @@ func (h *BillHandler) DeleteBill(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *BillHandler) PayBills(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int)
-	if !ok {
-		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
+func (h *BillHandler) PayBill(w http.ResponseWriter, r *http.Request) {
+	userID, _ := strconv.Atoi(r.Context().Value(middleware.UserIDKey).(string))
+
+	path := r.URL.Path
+	log.Printf("Full path: %s", path)
+
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) < 3 {
+		http.Error(w, "Invalid path format", http.StatusBadRequest)
 		return
 	}
 
-	var req dto.PayBillsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	paymentStr := parts[len(parts)-1]
+	log.Printf("Extracted payment_id: '%s'", paymentStr)
+
+	paymentID, err := strconv.Atoi(paymentStr)
+	if err != nil {
+		log.Printf("Failed to convert payment_id '%s' to int: %v", paymentStr, err)
+		http.Error(w, "Failed to get payment ID", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.billService.PayBills(r.Context(), userID, req.BillIDs, r.Context().Value(middleware.IdempotentKey).(string)); err != nil {
+	payments := []int{paymentID}
+
+	if err := h.billService.PayBills(r.Context(), userID, payments, r.Context().Value(middleware.IdempotentKey).(string)); err != nil {
 		http.Error(w, "Payment failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -230,19 +243,9 @@ func (h *BillHandler) PayBills(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BillHandler) PayBatchBills(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int)
-	if !ok {
-		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
-		return
-	}
+	userID, _ := strconv.Atoi(r.Context().Value(middleware.UserIDKey).(string))
 
-	var req dto.BatchPaymentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	response, err := h.billService.PayBatchBills(r.Context(), userID, req.BillIDs, r.Context().Value(middleware.IdempotentKey).(string))
+	response, err := h.billService.PayBatchBills(r.Context(), userID, r.Context().Value(middleware.IdempotentKey).(string))
 	if err != nil {
 		http.Error(w, "Batch payment failed: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -254,11 +257,7 @@ func (h *BillHandler) PayBatchBills(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BillHandler) GetUnpaidBills(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int)
-	if !ok {
-		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
-		return
-	}
+	userID, _ := strconv.Atoi(r.Context().Value(middleware.UserIDKey).(string))
 
 	bills, err := h.billService.GetUnpaidBills(r.Context(), userID)
 	if err != nil {
@@ -270,36 +269,8 @@ func (h *BillHandler) GetUnpaidBills(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(bills)
 }
 
-func (h *BillHandler) GetBillWithPaymentStatus(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int)
-	if !ok {
-		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
-		return
-	}
-
-	billIDStr := r.URL.Query().Get("bill_id")
-	billID, err := strconv.Atoi(billIDStr)
-	if err != nil {
-		http.Error(w, "Invalid bill ID", http.StatusBadRequest)
-		return
-	}
-
-	response, err := h.billService.GetBillWithPaymentStatus(r.Context(), userID, billID)
-	if err != nil {
-		http.Error(w, "Failed to get bill with payment status: "+err.Error(), http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
 func (h *BillHandler) GetUserPaymentHistory(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int)
-	if !ok {
-		http.Error(w, "Failed to get user ID", http.StatusInternalServerError)
-		return
-	}
+	userID, _ := strconv.Atoi(r.Context().Value(middleware.UserIDKey).(string))
 
 	history, err := h.billService.GetUserPaymentHistory(r.Context(), userID)
 	if err != nil {
