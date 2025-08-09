@@ -19,15 +19,20 @@ func NewApartmentHandler(apartmentService services.ApartmentService) *ApartmentH
 		apartmentService: apartmentService,
 	}
 }
-
 func (h *ApartmentHandler) CreateApartment(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		ApartmentName string `json:"apartment_name"`
 		Address       string `json:"address"`
 		UnitsCount    int    `json:"units_count"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if request.ApartmentName == "" || request.Address == "" || request.UnitsCount <= 0 {
+		http.Error(w, "All fields are required and units count must be positive", http.StatusBadRequest)
 		return
 	}
 
@@ -121,8 +126,14 @@ func (h *ApartmentHandler) UpdateApartment(w http.ResponseWriter, r *http.Reques
 		UnitsCount    int    `json:"units_count"`
 		ManagerID     int    `json:"manager_id"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if request.ID == 0 || request.ApartmentName == "" || request.Address == "" || request.UnitsCount == 0 || request.ManagerID == 0 {
+		http.Error(w, "All fields are required", http.StatusBadRequest)
 		return
 	}
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/handlers"
+	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
@@ -48,10 +49,12 @@ func TestCreateApartment(t *testing.T) {
 				"invalid_field": "value",
 			},
 			userID: "1",
-			mockSetup: func(*repositories.MockUserApartmentRepository, *repositories.MockUserRepository, *repositories.MockApartmentRepo) {
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, userRepo *repositories.MockUserRepository, aptRepo *repositories.MockApartmentRepo) {
+				//no mocks needed since validation fails before repository calls
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
+
 		{
 			name: "failed to create apartment",
 			requestBody: map[string]interface{}{
@@ -88,7 +91,7 @@ func TestCreateApartment(t *testing.T) {
 
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest("POST", "/apartments", bytes.NewReader(body))
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -171,7 +174,7 @@ func TestGetApartmentByID(t *testing.T) {
 			handler := handlers.NewApartmentHandler(service)
 
 			req := httptest.NewRequest("GET", "/apartments?"+tt.queryParams, nil)
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -188,15 +191,15 @@ func TestGetApartmentByID(t *testing.T) {
 func TestGetResidentsInApartment(t *testing.T) {
 	tests := []struct {
 		name           string
-		pathParam      string
+		apartmentID    string
 		userID         string
 		mockSetup      func(*repositories.MockUserApartmentRepository)
 		expectedStatus int
 	}{
 		{
-			name:      "successful get residents",
-			pathParam: "1",
-			userID:    "1",
+			name:        "successful get residents",
+			apartmentID: "1",
+			userID:      "1",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
 				userAptRepo.On("GetResidentsInApartment", 1).Return([]models.User{
@@ -208,15 +211,15 @@ func TestGetResidentsInApartment(t *testing.T) {
 		},
 		{
 			name:           "invalid apartment id",
-			pathParam:      "invalid",
+			apartmentID:    "invalid",
 			userID:         "1",
 			mockSetup:      func(*repositories.MockUserApartmentRepository) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:      "not manager of apartment",
-			pathParam: "1",
-			userID:    "1",
+			name:        "not manager of apartment",
+			apartmentID: "1",
+			userID:      "1",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
 			},
@@ -226,7 +229,6 @@ func TestGetResidentsInApartment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			mockAptRepo := new(repositories.MockApartmentRepo)
 			mockUserRepo := new(repositories.MockUserRepository)
 			mockUserAptRepo := new(repositories.MockUserApartmentRepository)
@@ -244,8 +246,9 @@ func TestGetResidentsInApartment(t *testing.T) {
 			)
 			handler := handlers.NewApartmentHandler(service)
 
-			req := httptest.NewRequest("GET", "/apartments/"+tt.pathParam+"/residents", nil)
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			req := httptest.NewRequest("GET", "/apartments/"+tt.apartmentID+"/residents", nil)
+			req.SetPathValue("apartment_id", tt.apartmentID)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -260,35 +263,32 @@ func TestGetResidentsInApartment(t *testing.T) {
 
 func TestInviteUserToApartment(t *testing.T) {
 	tests := []struct {
-		name           string
-		pathParams     map[string]string
-		userID         string
-		mockSetup      func(*repositories.MockUserApartmentRepository, *repositories.MockUserRepository, *repositories.MockInviteLinkRepository, *notification.MockNotification)
-		expectedStatus int
+		name             string
+		apartmentID      string
+		telegramUsername string
+		userID           string
+		mockSetup        func(*repositories.MockUserApartmentRepository, *repositories.MockUserRepository, *repositories.MockInviteLinkRepository, *notification.MockNotification)
+		expectedStatus   int
 	}{
 		{
-			name: "successful invitation",
-			pathParams: map[string]string{
-				"apartment_id":      "1",
-				"telegram_username": "testuser",
-			},
-			userID: "1",
+			name:             "successful invitation",
+			apartmentID:      "1",
+			telegramUsername: "testuser",
+			userID:           "1",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, userRepo *repositories.MockUserRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
 				userRepo.On("GetUserByTelegramUser", "testuser").Return(&models.User{BaseModel: models.BaseModel{ID: 2}}, nil)
-				userAptRepo.On("IsUserInApartment", mock.Anything, 2, 1).Return(false, nil)
+				userAptRepo.On("IsUserInApartment", mock.Anything, 2, 1).Return(false, errors.New("not in apartment"))
 				inviteRepo.On("CreateInvitation", mock.Anything, 2, 1, 1).Return("invite123", nil)
 				notif.On("SendInvitation", mock.Anything, mock.Anything, 1, "testuser").Return(nil)
 			},
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name: "user already resident",
-			pathParams: map[string]string{
-				"apartment_id":      "1",
-				"telegram_username": "testuser",
-			},
-			userID: "1",
+			name:             "user already resident",
+			apartmentID:      "1",
+			telegramUsername: "testuser",
+			userID:           "1",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, userRepo *repositories.MockUserRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
 				userRepo.On("GetUserByTelegramUser", "testuser").Return(&models.User{BaseModel: models.BaseModel{ID: 2}}, nil)
@@ -296,11 +296,28 @@ func TestInviteUserToApartment(t *testing.T) {
 			},
 			expectedStatus: http.StatusInternalServerError,
 		},
+		{
+			name:             "invalid apartment id",
+			apartmentID:      "invalid",
+			telegramUsername: "testuser",
+			userID:           "1",
+			mockSetup: func(*repositories.MockUserApartmentRepository, *repositories.MockUserRepository, *repositories.MockInviteLinkRepository, *notification.MockNotification) {
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:             "empty telegram username",
+			apartmentID:      "1",
+			telegramUsername: "",
+			userID:           "1",
+			mockSetup: func(*repositories.MockUserApartmentRepository, *repositories.MockUserRepository, *repositories.MockInviteLinkRepository, *notification.MockNotification) {
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			mockAptRepo := new(repositories.MockApartmentRepo)
 			mockUserRepo := new(repositories.MockUserRepository)
 			mockUserAptRepo := new(repositories.MockUserApartmentRepository)
@@ -318,8 +335,10 @@ func TestInviteUserToApartment(t *testing.T) {
 			)
 			handler := handlers.NewApartmentHandler(service)
 
-			req := httptest.NewRequest("POST", "/apartments/"+tt.pathParams["apartment_id"]+"/invite/"+tt.pathParams["telegram_username"], nil)
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			req := httptest.NewRequest("POST", "/apartments/"+tt.apartmentID+"/invite/"+tt.telegramUsername, nil)
+			req.SetPathValue("apartment_id", tt.apartmentID)
+			req.SetPathValue("telegram_username", tt.telegramUsername)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -338,27 +357,27 @@ func TestInviteUserToApartment(t *testing.T) {
 func TestJoinApartment(t *testing.T) {
 	tests := []struct {
 		name           string
-		pathParam      string
+		invitationCode string
 		userID         string
 		mockSetup      func(*repositories.MockUserApartmentRepository, *repositories.MockInviteLinkRepository, *notification.MockNotification)
 		expectedStatus int
 	}{
 		{
-			name:      "successful join",
-			pathParam: "validcode",
-			userID:    "1",
+			name:           "successful join",
+			invitationCode: "validcode",
+			userID:         "1",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
 				inviteRepo.On("ValidateAndConsumeInvitation", mock.Anything, "validcode").Return(1, nil)
-				userAptRepo.On("IsUserInApartment", mock.Anything, 1, 1).Return(false, nil)
+				userAptRepo.On("IsUserInApartment", mock.Anything, 1, 1).Return(false, errors.New("not in apartment"))
 				userAptRepo.On("CreateUserApartment", mock.Anything, mock.Anything).Return(nil)
 				notif.On("SendNotification", mock.Anything, 1, mock.Anything).Return(nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:      "invalid invitation code",
-			pathParam: "invalidcode",
-			userID:    "1",
+			name:           "invalid invitation code",
+			invitationCode: "invalidcode",
+			userID:         "1",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
 				inviteRepo.On("ValidateAndConsumeInvitation", mock.Anything, "invalidcode").Return(0, errors.New("invalid code"))
 			},
@@ -368,7 +387,6 @@ func TestJoinApartment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			mockAptRepo := new(repositories.MockApartmentRepo)
 			mockUserRepo := new(repositories.MockUserRepository)
 			mockUserAptRepo := new(repositories.MockUserApartmentRepository)
@@ -386,8 +404,9 @@ func TestJoinApartment(t *testing.T) {
 			)
 			handler := handlers.NewApartmentHandler(service)
 
-			req := httptest.NewRequest("POST", "/apartments/join/"+tt.pathParam, nil)
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			req := httptest.NewRequest("POST", "/apartments/join/"+tt.invitationCode, nil)
+			req.SetPathValue("invitation_code", tt.invitationCode)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -430,7 +449,6 @@ func TestLeaveApartment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			mockAptRepo := new(repositories.MockApartmentRepo)
 			mockUserRepo := new(repositories.MockUserRepository)
 			mockUserAptRepo := new(repositories.MockUserApartmentRepository)
@@ -449,7 +467,7 @@ func TestLeaveApartment(t *testing.T) {
 			handler := handlers.NewApartmentHandler(service)
 
 			req := httptest.NewRequest("POST", "/apartments/leave?"+tt.queryParam, nil)
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -491,15 +509,31 @@ func TestUpdateApartment(t *testing.T) {
 			requestBody: map[string]interface{}{
 				"invalid": "data",
 			},
-			userID:         "1",
-			mockSetup:      func(*repositories.MockUserApartmentRepository, *repositories.MockApartmentRepo) {},
+			userID: "1",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
+				//no mocks needed since validation fails before repository calls
+			},
 			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "not authorized to update",
+			requestBody: map[string]interface{}{
+				"id":             1,
+				"apartment_name": "Updated Name",
+				"address":        "Updated Address",
+				"units_count":    20,
+				"manager_id":     1,
+			},
+			userID: "1",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
+			},
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			mockAptRepo := new(repositories.MockApartmentRepo)
 			mockUserRepo := new(repositories.MockUserRepository)
 			mockUserAptRepo := new(repositories.MockUserApartmentRepository)
@@ -519,7 +553,7 @@ func TestUpdateApartment(t *testing.T) {
 
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest("PUT", "/apartments", bytes.NewReader(body))
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -548,6 +582,7 @@ func TestDeleteApartment(t *testing.T) {
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
 				aptRepo.On("DeleteApartment", 1).Return(nil)
+				userAptRepo.On("DeleteApartmentFromUserApartments", 1).Return(nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -557,6 +592,15 @@ func TestDeleteApartment(t *testing.T) {
 			userID:         "1",
 			mockSetup:      func(*repositories.MockUserApartmentRepository, *repositories.MockApartmentRepo) {},
 			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "not authorized to delete",
+			queryParam: "id=1",
+			userID:     "1",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
+			},
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -580,7 +624,7 @@ func TestDeleteApartment(t *testing.T) {
 			handler := handlers.NewApartmentHandler(service)
 
 			req := httptest.NewRequest("DELETE", "/apartments?"+tt.queryParam, nil)
-			ctx := context.WithValue(req.Context(), "user_id", tt.userID)
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 			req = req.WithContext(ctx)
 			w := httptest.NewRecorder()
 
@@ -597,13 +641,13 @@ func TestDeleteApartment(t *testing.T) {
 func TestGetAllApartmentsForResident(t *testing.T) {
 	tests := []struct {
 		name           string
-		pathParam      string
+		userID         string
 		mockSetup      func(*repositories.MockUserApartmentRepository)
 		expectedStatus int
 	}{
 		{
-			name:      "successful get apartments",
-			pathParam: "1",
+			name:   "successful get apartments",
+			userID: "1",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository) {
 				userAptRepo.On("GetAllApartmentsForAResident", 1).Return([]models.Apartment{
 					{BaseModel: models.BaseModel{ID: 1}, ApartmentName: "Apt 1"},
@@ -614,9 +658,17 @@ func TestGetAllApartmentsForResident(t *testing.T) {
 		},
 		{
 			name:           "invalid resident id",
-			pathParam:      "invalid",
+			userID:         "invalid",
 			mockSetup:      func(*repositories.MockUserApartmentRepository) {},
 			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "failed to get apartments",
+			userID: "1",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository) {
+				userAptRepo.On("GetAllApartmentsForAResident", 1).Return(nil, errors.New("database error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -639,7 +691,8 @@ func TestGetAllApartmentsForResident(t *testing.T) {
 			)
 			handler := handlers.NewApartmentHandler(service)
 
-			req := httptest.NewRequest("GET", "/users/"+tt.pathParam+"/apartments", nil)
+			req := httptest.NewRequest("GET", "/users/"+tt.userID+"/apartments", nil)
+			req.SetPathValue("user_id", tt.userID)
 			w := httptest.NewRecorder()
 
 			handler.GetAllApartmentsForResident(w, req)
