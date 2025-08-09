@@ -61,7 +61,7 @@ func NewApartmantService(
 ) *ApartmantService {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	userService := services.NewUserService(userRepo)
+	userService := services.NewUserService(userRepo, userApartmentRepo)
 	apartmentService := services.NewApartmentService(
 		apartmentRepo,
 		userRepo,

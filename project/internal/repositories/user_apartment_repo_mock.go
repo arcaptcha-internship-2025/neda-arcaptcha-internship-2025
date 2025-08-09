@@ -42,6 +42,11 @@ func (m *MockUserApartmentRepository) DeleteUserApartment(userID, apartmentID in
 	return args.Error(0)
 }
 
+func (m *MockUserApartmentRepository) DeleteUserFromApartments(userID int) error {
+	args := m.Called(userID)
+	return args.Error(0)
+}
+
 func (m *MockUserApartmentRepository) GetAllApartmentsForAResident(residentID int) ([]models.Apartment, error) {
 	args := m.Called(residentID)
 	if args.Get(0) == nil {
@@ -58,4 +63,9 @@ func (m *MockUserApartmentRepository) IsUserManagerOfApartment(ctx context.Conte
 func (m *MockUserApartmentRepository) IsUserInApartment(ctx context.Context, userID, apartmentID int) (bool, error) {
 	args := m.Called(ctx, userID, apartmentID)
 	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockUserApartmentRepository) DeleteApartmentFromUserApartments(apartmentID int) error {
+	args := m.Called(apartmentID)
+	return args.Error(0)
 }

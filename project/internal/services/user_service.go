@@ -25,12 +25,14 @@ type UserService interface {
 }
 
 type userServiceImpl struct {
-	userRepo repositories.UserRepository
+	userRepo          repositories.UserRepository
+	userApartmentRepo repositories.UserApartmentRepository
 }
 
-func NewUserService(userRepo repositories.UserRepository) UserService {
+func NewUserService(userRepo repositories.UserRepository, userApartmentRepo repositories.UserApartmentRepository) UserService {
 	return &userServiceImpl{
-		userRepo: userRepo,
+		userRepo:          userRepo,
+		userApartmentRepo: userApartmentRepo,
 	}
 }
 
@@ -327,7 +329,14 @@ func (s *userServiceImpl) DeleteUser(ctx context.Context, userID int) error {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
-	logger.Info("User deleted successfully")
+	err := s.userApartmentRepo.DeleteUserFromApartments(userID)
+	if err != nil {
+		logger.WithError(err).Error("Failed to remove user from apartments")
+		return fmt.Errorf("failed to remove user from apartments: %w", err)
+	}
+
+	logger.WithField("user_id", userID).Info("User deleted successfully")
+
 	return nil
 }
 

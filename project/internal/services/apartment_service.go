@@ -158,6 +158,12 @@ func (s *apartmentServiceImpl) DeleteApartment(ctx context.Context, id, managerI
 		logrus.WithError(err).Errorf("Failed to delete apartment %d", id)
 		return fmt.Errorf("failed to delete apartment: %w", err)
 	}
+	err := s.userApartmentRepo.DeleteApartmentFromUserApartments(id)
+	if err != nil {
+		logrus.WithError(err).Errorf("Failed to remove apartment from user apartments %d", id)
+		return fmt.Errorf("failed to remove apartment from user apartments: %w", err)
+	}
+	logrus.Infof("Apartment %d deleted successfully", id)
 	return nil
 }
 

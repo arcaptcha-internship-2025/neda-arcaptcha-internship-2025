@@ -35,8 +35,11 @@ func TestUserService_CreateUser(t *testing.T) {
 			},
 			botAddress: "https://t.me/testbot",
 			mockSetup: func(m *repositories.MockUserRepository) {
+				// Check username doesn't exist
 				m.On("GetUserByUsername", "testuser").Return(nil, sql.ErrNoRows)
+				// Check telegram username doesn't exist
 				m.On("GetUserByTelegramUser", "test_user").Return(nil, sql.ErrNoRows)
+				// Create user
 				m.On("CreateUser", mock.Anything, mock.AnythingOfType("models.User")).Return(1, nil)
 			},
 			expectError: false,
@@ -126,7 +129,7 @@ func TestUserService_CreateUser(t *testing.T) {
 			mockRepo := &repositories.MockUserRepository{}
 			tt.mockSetup(mockRepo)
 
-			service := NewUserService(mockRepo)
+			service := NewUserService(mockRepo, nil) // Assuming userApartmentRepo is not needed for this test
 
 			response, err := service.CreateUser(context.Background(), tt.request, tt.botAddress)
 
@@ -155,6 +158,7 @@ func TestUserService_CreateUser(t *testing.T) {
 }
 
 func TestUserService_AuthenticateUser(t *testing.T) {
+	// Create a hashed password for testing
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
 	tests := []struct {
@@ -222,7 +226,7 @@ func TestUserService_AuthenticateUser(t *testing.T) {
 			mockRepo := &repositories.MockUserRepository{}
 			tt.mockSetup(mockRepo)
 
-			service := NewUserService(mockRepo)
+			service := NewUserService(mockRepo, nil)
 
 			response, err := service.AuthenticateUser(context.Background(), tt.request)
 
@@ -283,7 +287,7 @@ func TestUserService_GetUserProfile(t *testing.T) {
 			mockRepo := &repositories.MockUserRepository{}
 			tt.mockSetup(mockRepo)
 
-			service := NewUserService(mockRepo)
+			service := NewUserService(mockRepo, nil)
 
 			response, err := service.GetUserProfile(context.Background(), tt.userID)
 
@@ -385,7 +389,7 @@ func TestUserService_UpdateUserProfile(t *testing.T) {
 			mockRepo := &repositories.MockUserRepository{}
 			tt.mockSetup(mockRepo)
 
-			service := NewUserService(mockRepo)
+			service := NewUserService(mockRepo, nil)
 
 			response, err := service.UpdateUserProfile(context.Background(), tt.userID, tt.request)
 
@@ -440,7 +444,7 @@ func TestUserService_GetPublicUser(t *testing.T) {
 			mockRepo := &repositories.MockUserRepository{}
 			tt.mockSetup(mockRepo)
 
-			service := NewUserService(mockRepo)
+			service := NewUserService(mockRepo, nil)
 
 			response, err := service.GetPublicUser(context.Background(), tt.userID)
 
@@ -489,7 +493,7 @@ func TestUserService_GetAllPublicUsers(t *testing.T) {
 			mockRepo := &repositories.MockUserRepository{}
 			tt.mockSetup(mockRepo)
 
-			service := NewUserService(mockRepo)
+			service := NewUserService(mockRepo, nil)
 
 			response, err := service.GetAllPublicUsers(context.Background())
 
@@ -548,7 +552,7 @@ func TestUserService_DeleteUser(t *testing.T) {
 			mockRepo := &repositories.MockUserRepository{}
 			tt.mockSetup(mockRepo)
 
-			service := NewUserService(mockRepo)
+			service := NewUserService(mockRepo, nil)
 
 			err := service.DeleteUser(context.Background(), tt.userID)
 

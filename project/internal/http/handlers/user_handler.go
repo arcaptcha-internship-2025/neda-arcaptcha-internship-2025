@@ -64,8 +64,8 @@ func (h *UserHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "invalid Telegram username format")
 		case "username already exists":
 			utils.WriteErrorResponse(w, http.StatusConflict, "username already exists")
-		case "Telegram username already in use":
-			utils.WriteErrorResponse(w, http.StatusConflict, "Telegram username already in use")
+		case "telegram username already in use":
+			utils.WriteErrorResponse(w, http.StatusConflict, "telegram username already in use")
 		default:
 			if err.Error() == "failed to check existing user" ||
 				err.Error() == "failed to check Telegram username" ||

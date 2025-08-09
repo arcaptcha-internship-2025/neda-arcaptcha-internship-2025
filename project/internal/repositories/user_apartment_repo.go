@@ -26,9 +26,11 @@ type UserApartmentRepository interface {
 	GetUserApartmentByID(userID, apartmentID int) (*models.User_apartment, error)
 	UpdateUserApartment(ctx context.Context, user_apartment models.User_apartment) error
 	DeleteUserApartment(userID, apartmentID int) error
+	DeleteUserFromApartments(userID int) error
 	GetAllApartmentsForAResident(residentID int) ([]models.Apartment, error)
 	IsUserManagerOfApartment(ctx context.Context, userID, apartmentID int) (bool, error)
 	IsUserInApartment(ctx context.Context, userID, apartmentID int) (bool, error)
+	DeleteApartmentFromUserApartments(apartmentID int) error
 }
 
 type userApartmentRepositoryImpl struct {
@@ -130,4 +132,19 @@ func (r *userApartmentRepositoryImpl) IsUserInApartment(ctx context.Context, use
 		return false, err
 	}
 	return true, nil
+}
+
+func (r *userApartmentRepositoryImpl) DeleteUserFromApartments(userID int) error {
+	query := `DELETE FROM user_apartments WHERE user_id = $1`
+	_, err := r.db.Exec(query, userID)
+	return err
+}
+
+func (r *userApartmentRepositoryImpl) DeleteApartmentFromUserApartments(apartmentID int) error {
+	query := `DELETE FROM user_apartments WHERE apartment_id = $1`
+	_, err := r.db.Exec(query, apartmentID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
