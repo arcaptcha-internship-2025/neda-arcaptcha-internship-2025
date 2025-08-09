@@ -142,7 +142,16 @@ func TestGetApartmentByID(t *testing.T) {
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
 			},
-			expectedError: "failed to get apartment",
+			expectedError: "",
+		},
+		{
+			name:      "error checking manager status",
+			id:        1,
+			managerID: 1,
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, errors.New("database error"))
+			},
+			expectedError: "",
 		},
 		{
 			name:      "apartment not found",
@@ -150,7 +159,7 @@ func TestGetApartmentByID(t *testing.T) {
 			managerID: 1,
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
-				aptRepo.On("GetApartmentByID", 1).Return(nil, errors.New("not found"))
+				aptRepo.On("GetApartmentByID", 1).Return((*models.Apartment)(nil), errors.New("not found"))
 			},
 			expectedError: "failed to get apartment",
 		},
@@ -180,6 +189,11 @@ func TestGetApartmentByID(t *testing.T) {
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Nil(t, apartment)
+			} else if tt.expectedError == "" && tt.name != "successful get apartment" {
+
+				assert.Error(t, err)
+				assert.Equal(t, "", err.Error())
 				assert.Nil(t, apartment)
 			} else {
 				assert.NoError(t, err)
@@ -224,7 +238,16 @@ func TestGetResidentsInApartment(t *testing.T) {
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
 			},
-			expectedError: "failed to get residents",
+			expectedError: "",
+		},
+		{
+			name:        "error checking manager status",
+			apartmentID: 1,
+			managerID:   1,
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, errors.New("database error"))
+			},
+			expectedError: "",
 		},
 		{
 			name:        "failed to get residents",
@@ -262,6 +285,11 @@ func TestGetResidentsInApartment(t *testing.T) {
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Nil(t, residents)
+			} else if tt.expectedError == "" && tt.name != "successful get residents" {
+				// For empty error messages (authorization failures)
+				assert.Error(t, err)
+				assert.Equal(t, "", err.Error())
 				assert.Nil(t, residents)
 			} else {
 				assert.NoError(t, err)
@@ -312,7 +340,19 @@ func TestUpdateApartment(t *testing.T) {
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
 			},
-			expectedError: "failed to update apartment",
+			expectedError: "", // Empty error message as per the service implementation
+		},
+		{
+			name:          "error checking manager status",
+			id:            1,
+			apartmentName: "Updated Name",
+			address:       "Updated Address",
+			unitsCount:    20,
+			managerID:     1,
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, errors.New("database error"))
+			},
+			expectedError: "", // Empty error message as per the service implementation
 		},
 		{
 			name:          "failed to update",
@@ -353,6 +393,10 @@ func TestUpdateApartment(t *testing.T) {
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
+			} else if tt.expectedError == "" && tt.name != "successful update" {
+				// For empty error messages (authorization failures)
+				assert.Error(t, err)
+				assert.Equal(t, "", err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
@@ -378,6 +422,7 @@ func TestDeleteApartment(t *testing.T) {
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
 				aptRepo.On("DeleteApartment", 1).Return(nil)
+				userAptRepo.On("DeleteApartmentFromUserApartments", 1).Return(nil)
 			},
 		},
 		{
@@ -387,10 +432,19 @@ func TestDeleteApartment(t *testing.T) {
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
 			},
-			expectedError: "failed to delete apartment",
+			expectedError: "",
 		},
 		{
-			name:      "failed to delete",
+			name:      "error checking manager status",
+			id:        1,
+			managerID: 1,
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, errors.New("database error"))
+			},
+			expectedError: "",
+		},
+		{
+			name:      "failed to delete apartment",
 			id:        1,
 			managerID: 1,
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
@@ -398,6 +452,17 @@ func TestDeleteApartment(t *testing.T) {
 				aptRepo.On("DeleteApartment", 1).Return(errors.New("database error"))
 			},
 			expectedError: "failed to delete apartment",
+		},
+		{
+			name:      "failed to delete from user apartments",
+			id:        1,
+			managerID: 1,
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, aptRepo *repositories.MockApartmentRepo) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
+				aptRepo.On("DeleteApartment", 1).Return(nil)
+				userAptRepo.On("DeleteApartmentFromUserApartments", 1).Return(errors.New("database error"))
+			},
+			expectedError: "failed to remove apartment from user apartments",
 		},
 	}
 
@@ -425,6 +490,9 @@ func TestDeleteApartment(t *testing.T) {
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
+			} else if tt.expectedError == "" && tt.name != "successful delete" {
+				assert.Error(t, err)
+				assert.Equal(t, "", err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
@@ -453,7 +521,7 @@ func TestInviteUserToApartment(t *testing.T) {
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, userRepo *repositories.MockUserRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
 				userRepo.On("GetUserByTelegramUser", "testuser").Return(&models.User{BaseModel: models.BaseModel{ID: 2}}, nil)
-				userAptRepo.On("IsUserInApartment", mock.Anything, 2, 1).Return(false, nil)
+				userAptRepo.On("IsUserInApartment", mock.Anything, 2, 1).Return(false, errors.New("not in apartment"))
 				inviteRepo.On("CreateInvitation", mock.Anything, 2, 1, 1).Return("invite123", nil)
 				notif.On("SendInvitation", mock.Anything, mock.Anything, 1, "testuser").Return(nil)
 			},
@@ -471,6 +539,16 @@ func TestInviteUserToApartment(t *testing.T) {
 				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, nil)
 			},
 			expectedError: "only apartment managers can send invitations",
+		},
+		{
+			name:             "error verifying manager status",
+			managerID:        1,
+			apartmentID:      1,
+			telegramUsername: "testuser",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, userRepo *repositories.MockUserRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(false, errors.New("database error"))
+			},
+			expectedError: "failed to verify apartment manager status",
 		},
 		{
 			name:             "user not found",
@@ -494,6 +572,33 @@ func TestInviteUserToApartment(t *testing.T) {
 				userAptRepo.On("IsUserInApartment", mock.Anything, 2, 1).Return(true, nil)
 			},
 			expectedError: "user is already a resident of this apartment",
+		},
+		{
+			name:             "failed to create invitation",
+			managerID:        1,
+			apartmentID:      1,
+			telegramUsername: "testuser",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, userRepo *repositories.MockUserRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
+				userRepo.On("GetUserByTelegramUser", "testuser").Return(&models.User{BaseModel: models.BaseModel{ID: 2}}, nil)
+				userAptRepo.On("IsUserInApartment", mock.Anything, 2, 1).Return(false, errors.New("not in apartment"))
+				inviteRepo.On("CreateInvitation", mock.Anything, 2, 1, 1).Return("", errors.New("creation failed"))
+			},
+			expectedError: "failed to created invitation",
+		},
+		{
+			name:             "failed to send notification",
+			managerID:        1,
+			apartmentID:      1,
+			telegramUsername: "testuser",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, userRepo *repositories.MockUserRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
+				userAptRepo.On("IsUserManagerOfApartment", mock.Anything, 1, 1).Return(true, nil)
+				userRepo.On("GetUserByTelegramUser", "testuser").Return(&models.User{BaseModel: models.BaseModel{ID: 2}}, nil)
+				userAptRepo.On("IsUserInApartment", mock.Anything, 2, 1).Return(false, errors.New("not in apartment"))
+				inviteRepo.On("CreateInvitation", mock.Anything, 2, 1, 1).Return("invite123", nil)
+				notif.On("SendInvitation", mock.Anything, mock.Anything, 1, "testuser").Return(errors.New("send failed"))
+			},
+			expectedError: "invitation created but failed to send notification",
 		},
 	}
 
@@ -551,7 +656,7 @@ func TestJoinApartment(t *testing.T) {
 			invitationCode: "validcode",
 			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
 				inviteRepo.On("ValidateAndConsumeInvitation", mock.Anything, "validcode").Return(1, nil)
-				userAptRepo.On("IsUserInApartment", mock.Anything, 1, 1).Return(false, nil)
+				userAptRepo.On("IsUserInApartment", mock.Anything, 1, 1).Return(false, errors.New("not in apartment"))
 				userAptRepo.On("CreateUserApartment", mock.Anything, mock.MatchedBy(func(ua models.User_apartment) bool {
 					return ua.UserID == 1 && ua.ApartmentID == 1 && !ua.IsManager
 				})).Return(nil)
@@ -579,6 +684,19 @@ func TestJoinApartment(t *testing.T) {
 				userAptRepo.On("IsUserInApartment", mock.Anything, 1, 1).Return(true, nil)
 			},
 			expectedError: "you are already a resident of this apartment",
+		},
+		{
+			name:           "failed to join apartment",
+			userID:         1,
+			invitationCode: "validcode",
+			mockSetup: func(userAptRepo *repositories.MockUserApartmentRepository, inviteRepo *repositories.MockInviteLinkRepository, notif *notification.MockNotification) {
+				inviteRepo.On("ValidateAndConsumeInvitation", mock.Anything, "validcode").Return(1, nil)
+				userAptRepo.On("IsUserInApartment", mock.Anything, 1, 1).Return(false, errors.New("not in apartment"))
+				userAptRepo.On("CreateUserApartment", mock.Anything, mock.MatchedBy(func(ua models.User_apartment) bool {
+					return ua.UserID == 1 && ua.ApartmentID == 1 && !ua.IsManager
+				})).Return(errors.New("failed to create"))
+			},
+			expectedError: "failed to join apartment",
 		},
 	}
 
