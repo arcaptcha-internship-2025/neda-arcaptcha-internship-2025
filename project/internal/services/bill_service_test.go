@@ -1,4 +1,4 @@
-package services_test
+package services
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/payment"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -71,7 +70,7 @@ func TestPayBills(t *testing.T) {
 
 			tt.setupMocks(mockPaymentRepo, mockPaymentService)
 
-			billService := services.NewBillService(
+			billService := NewBillService(
 				nil,
 				nil,
 				nil,

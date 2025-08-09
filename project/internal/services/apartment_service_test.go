@@ -1,4 +1,4 @@
-package services_test
+package services
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/repositories"
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -79,7 +78,7 @@ func TestCreateApartment(t *testing.T) {
 
 			tt.mockSetup(mockAptRepo, mockUserAptRepo)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -176,7 +175,7 @@ func TestGetApartmentByID(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo, mockAptRepo)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -272,7 +271,7 @@ func TestGetResidentsInApartment(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -380,7 +379,7 @@ func TestUpdateApartment(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo, mockAptRepo)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -394,7 +393,6 @@ func TestUpdateApartment(t *testing.T) {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
 			} else if tt.expectedError == "" && tt.name != "successful update" {
-				// For empty error messages (authorization failures)
 				assert.Error(t, err)
 				assert.Equal(t, "", err.Error())
 			} else {
@@ -477,7 +475,7 @@ func TestDeleteApartment(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo, mockAptRepo)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -613,7 +611,7 @@ func TestInviteUserToApartment(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo, mockUserRepo, mockInviteRepo, mockNotif)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -711,7 +709,7 @@ func TestJoinApartment(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo, mockInviteRepo, mockNotif)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -775,7 +773,7 @@ func TestLeaveApartment(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,
@@ -840,7 +838,7 @@ func TestGetAllApartmentsForResident(t *testing.T) {
 
 			tt.mockSetup(mockUserAptRepo)
 
-			service := services.NewApartmentService(
+			service := NewApartmentService(
 				mockAptRepo,
 				mockUserRepo,
 				mockUserAptRepo,

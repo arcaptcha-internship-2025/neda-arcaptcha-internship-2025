@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/handlers"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/http/middleware"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/models"
 	"github.com/nedaZarei/arcaptcha-internship-2025/neda-arcaptcha-internship-2025/internal/notification"
@@ -87,7 +86,7 @@ func TestCreateApartment(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest("POST", "/apartments", bytes.NewReader(body))
@@ -171,7 +170,7 @@ func TestGetApartmentByID(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			req := httptest.NewRequest("GET", "/apartments?"+tt.queryParams, nil)
 			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
@@ -244,7 +243,7 @@ func TestGetResidentsInApartment(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			req := httptest.NewRequest("GET", "/apartments/"+tt.apartmentID+"/residents", nil)
 			req.SetPathValue("apartment_id", tt.apartmentID)
@@ -333,7 +332,7 @@ func TestInviteUserToApartment(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			req := httptest.NewRequest("POST", "/apartments/"+tt.apartmentID+"/invite/"+tt.telegramUsername, nil)
 			req.SetPathValue("apartment_id", tt.apartmentID)
@@ -402,7 +401,7 @@ func TestJoinApartment(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			req := httptest.NewRequest("POST", "/apartments/join/"+tt.invitationCode, nil)
 			req.SetPathValue("invitation_code", tt.invitationCode)
@@ -464,7 +463,7 @@ func TestLeaveApartment(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			req := httptest.NewRequest("POST", "/apartments/leave?"+tt.queryParam, nil)
 			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
@@ -549,7 +548,7 @@ func TestUpdateApartment(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest("PUT", "/apartments", bytes.NewReader(body))
@@ -621,7 +620,7 @@ func TestDeleteApartment(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			req := httptest.NewRequest("DELETE", "/apartments?"+tt.queryParam, nil)
 			ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
@@ -689,7 +688,7 @@ func TestGetAllApartmentsForResident(t *testing.T) {
 				mockInviteRepo,
 				mockNotif,
 			)
-			handler := handlers.NewApartmentHandler(service)
+			handler := NewApartmentHandler(service)
 
 			req := httptest.NewRequest("GET", "/users/"+tt.userID+"/apartments", nil)
 			req.SetPathValue("user_id", tt.userID)
