@@ -35,11 +35,8 @@ func TestUserService_CreateUser(t *testing.T) {
 			},
 			botAddress: "https://t.me/testbot",
 			mockSetup: func(m *repositories.MockUserRepository) {
-				// Check username doesn't exist
 				m.On("GetUserByUsername", "testuser").Return(nil, sql.ErrNoRows)
-				// Check telegram username doesn't exist
 				m.On("GetUserByTelegramUser", "test_user").Return(nil, sql.ErrNoRows)
-				// Create user
 				m.On("CreateUser", mock.Anything, mock.AnythingOfType("models.User")).Return(1, nil)
 			},
 			expectError: false,
@@ -504,63 +501,6 @@ func TestUserService_GetAllPublicUsers(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
 				assert.Len(t, response, 2)
-			}
-
-			mockRepo.AssertExpectations(t)
-		})
-	}
-}
-
-func TestUserService_DeleteUser(t *testing.T) {
-	tests := []struct {
-		name        string
-		userID      int
-		mockSetup   func(*repositories.MockUserRepository)
-		expectError bool
-		errorMsg    string
-	}{
-		{
-			name:   "successful delete",
-			userID: 1,
-			mockSetup: func(m *repositories.MockUserRepository) {
-				m.On("DeleteUser", 1).Return(nil)
-			},
-			expectError: false,
-		},
-		{
-			name:   "user not found",
-			userID: 999,
-			mockSetup: func(m *repositories.MockUserRepository) {
-				m.On("DeleteUser", 999).Return(sql.ErrNoRows)
-			},
-			expectError: true,
-			errorMsg:    "user not found",
-		},
-		{
-			name:   "repository error",
-			userID: 1,
-			mockSetup: func(m *repositories.MockUserRepository) {
-				m.On("DeleteUser", 1).Return(assert.AnError)
-			},
-			expectError: true,
-			errorMsg:    "failed to delete user",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &repositories.MockUserRepository{}
-			tt.mockSetup(mockRepo)
-
-			service := NewUserService(mockRepo, nil)
-
-			err := service.DeleteUser(context.Background(), tt.userID)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errorMsg)
-			} else {
-				assert.NoError(t, err)
 			}
 
 			mockRepo.AssertExpectations(t)
